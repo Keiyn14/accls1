@@ -60,17 +60,69 @@
         padding: 0.4rem 0.75rem;
         outline: none;
     }
+    .dataTables_wrapper .dataTables_info {
+        float: left;
+        margin-top: 1.25rem;
+        color: #4b5563;
+        font-size: 0.875rem;
+        font-weight: 500;
+    }
+
+    /* --- 🚀 FIXED PAGINATION DESIGN ENGINE --- */
     .dataTables_wrapper .dataTables_paginate {
         float: right;
         margin-top: 1rem;
     }
-    .dataTables_wrapper .dataTables_info {
-        float: left;
-        margin-top: 1rem;
-        color: #4b5563;
+    .dataTables_paginate ul.pagination {
+        display: inline-flex !important;
+        list-style: none !important;
+        padding-left: 0 !important;
+        margin: 0 !important;
+        border-radius: 0.5rem !important;
+        overflow: hidden;
+        border: 1px solid #d1d5db !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .dataTables_paginate ul.pagination li {
+        display: inline !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .dataTables_paginate ul.pagination li a {
+        position: relative;
+        display: block;
+        padding: 0.5rem 0.875rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        line-height: 1.25;
+        color: #374151 !important;
+        background-color: #ffffff;
+        border-right: 1px solid #d1d5db;
+        text-decoration: none !important;
+        transition: all 0.15s ease-in-out;
+        cursor: pointer;
+    }
+    .dataTables_paginate ul.pagination li:last-child a {
+        border-right: none;
+    }
+    .dataTables_paginate ul.pagination li a:hover {
+        background-color: #f0fdf4 !important;
+        color: #15803d !important;
+    }
+    .dataTables_paginate ul.pagination li.active a {
+        background-color: #16a34a !important;
+        color: #ffffff !important;
+        border-color: #16a34a !important;
+        cursor: default;
+    }
+    .dataTables_paginate ul.pagination li.disabled a {
+        color: #9ca3af !important;
+        background-color: #f9fafb !important;
+        cursor: not-allowed;
+        pointer-events: none;
     }
     
-    /* Native CSS Print Logic (Fallback for Ctrl+P on main screen) */
+    /* Native CSS Print Logic */
     @media print {
         .print-hide, .dataTables_filter, .dataTables_info, .dataTables_paginate, .dataTables_length {
             display: none !important;
@@ -79,19 +131,28 @@
         #dataTables-example th:first-child, #dataTables-example td:first-child { display: none !important; }
         table { width: 100% !important; border-collapse: collapse !important; }
         td, th { border: 1px solid #ddd !important; padding: 8px !important; }
+        
+        body::before {
+            content: "Enrolled College Students Directory";
+            display: block;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #000;
+        }
     }
 </style>
 
 <br />
 <?php 
     // =========================================================================
-    // --- DIRECTORY PATH CONFIGURATION ---
+    // --- DIRECTORY PATH CONFIGURATION (LOCKED INSTANCE VALUES) ---
     // =========================================================================
     $uploadDir = "uploads/";        
     $defaultPic = "../assets/logo.png";   
     // =========================================================================
 
-    //session_start();
     //1->College
     $dept='1';
     
@@ -127,6 +188,8 @@
         $mname = $dbcon->real_escape_string($_POST['mname']);
         $lname = $dbcon->real_escape_string($_POST['lname']);
         $gender = $dbcon->real_escape_string($_POST['gender']);
+        $email = $dbcon->real_escape_string($_POST['email'] ?? '');
+        $smobile = $dbcon->real_escape_string($_POST['smobile'] ?? '');
         $cid = intval($_POST['cid']);
         $gid = intval($_POST['gid']);
         $did = intval($_POST['did'] ?? 0);
@@ -140,8 +203,8 @@
             move_uploaded_file($_FILES['pic']['tmp_name'], $uploadDir . $picName);
         }
 
-        $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, cid, gid, did, syid, sid, guardian, mobile, address, pic) 
-                      VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', $cid, $gid, $did, $csyid, $cssid, '$guardian', '$mobile', '$address', '$picName')";
+        $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
+                      VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', '$email', '$smobile', $cid, $gid, $did, $csyid, $cssid, '$guardian', '$mobile', '$address', '$picName')";
         
         if($dbcon->query($strInsert)){
             echo "<script>window.location.replace(window.location.href);</script>";
@@ -160,6 +223,8 @@
         $mname = $dbcon->real_escape_string($_POST['umname']);
         $lname = $dbcon->real_escape_string($_POST['ulname']);
         $gender = $dbcon->real_escape_string($_POST['ugender']);
+        $email = $dbcon->real_escape_string($_POST['uemail'] ?? '');
+        $smobile = $dbcon->real_escape_string($_POST['usmobile'] ?? '');
         $cid = intval($_POST['ucid']);
         $gid = intval($_POST['ugid']);
         $did = intval($_POST['udid']);
@@ -167,7 +232,7 @@
         $mobile = $dbcon->real_escape_string($_POST['umobile']);
         $address = $dbcon->real_escape_string($_POST['uaddress']);
 
-        $strUpdate = "UPDATE students SET studentid='$studentid', fname='$fname', mname='$mname', lname='$lname', gender='$gender', 
+        $strUpdate = "UPDATE students SET studentid='$studentid', fname='$fname', mname='$mname', lname='$lname', gender='$gender', email='$email', smobile='$smobile', 
                       cid=$cid, gid=$gid, did=$did, guardian='$guardian', mobile='$mobile', address='$address' WHERE csid=$csid";
         
         if($dbcon->query($strUpdate)){
@@ -179,41 +244,142 @@
         }
     }
 
-    // Update Picture
-    if(isset($_POST['btnUpdatePic'])){
-        $csid = intval($_POST['pcsid']);
-        if(isset($_FILES['newpic']) && $_FILES['newpic']['error'] == 0){
-            $picName = time() . '_' . preg_replace("/[^a-zA-Z0-9.]/", "", $_FILES['newpic']['name']);
-            if(move_uploaded_file($_FILES['newpic']['tmp_name'], $uploadDir . $picName)){
-                $dbcon->query("UPDATE students SET pic='$picName' WHERE csid=$csid");
-                echo "<script>window.location.replace(window.location.href);</script>";
-                exit();
+    // Import Bulk Learners via CSV
+    if(isset($_POST['btnImportCSV'])){
+        if(isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] == 0){
+            $tmpName = $_FILES['csv_file']['tmp_name'];
+            $targetPath = $uploadDir . time() . '_temp_import.csv';
+            
+            if(move_uploaded_file($tmpName, $targetPath)) {
+                if(($handle = fopen($targetPath, "r")) !== FALSE) {
+                    fgetcsv($handle); 
+                    
+                    $successCount = 0;
+                    $skipCount = 0;
+                    $errorLogs = []; 
+
+                    while (($raw_data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                        if(empty(trim(implode("", $raw_data)))) {
+                            continue; 
+                        }
+
+                        if(count($raw_data) == 1 && strpos($raw_data[0], ';') !== false){
+                            $raw_data = explode(';', $raw_data[0]);
+                        }
+
+                        $data = array_pad($raw_data, 13, '');
+
+                        $studentid = $dbcon->real_escape_string(trim($data[0]));
+                        $fname = $dbcon->real_escape_string(trim($data[1]));
+                        $mname = $dbcon->real_escape_string(trim($data[2]));
+                        $lname = $dbcon->real_escape_string(trim($data[3]));
+                        $gender = $dbcon->real_escape_string(trim($data[4]));
+                        $cid = intval(trim($data[5]));
+                        $gid = intval(trim($data[6]));
+                        $did = intval(trim($data[7]));
+                        $guardian = $dbcon->real_escape_string(trim($data[8]));
+                        $mobile = $dbcon->real_escape_string(trim($data[9]));
+                        $address = $dbcon->real_escape_string(trim($data[10]));
+                        $email = $dbcon->real_escape_string(trim($data[11]));
+                        $smobile = $dbcon->real_escape_string(trim($data[12]));
+                        $picName = ""; 
+
+                        if(!empty($studentid) && !empty($lname) && !empty($fname)){
+                            $checkQry = "SELECT csid FROM students WHERE studentid = '$studentid'";
+                            $checkRes = $dbcon->query($checkQry);
+                            
+                            if($checkRes === FALSE){
+                                $errorLogs[] = "Database Error ($studentid): " . $dbcon->error;
+                            } elseif($checkRes->num_rows > 0) {
+                                $skipCount++; 
+                            } else {
+                                $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
+                                              VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', '$email', '$smobile', $cid, $gid, $did, $csyid, $cssid, '$guardian', '$mobile', '$address', '$picName')";
+                                
+                                if($dbcon->query($strInsert)){
+                                    $successCount++;
+                                } else {
+                                    $errorLogs[] = "Insert Error ($studentid): " . $dbcon->error;
+                                }
+                            }
+                        } else {
+                            $errorLogs[] = "Invalid Row -> Seen ID:['$studentid'] First:['$fname'] Last:['$lname']. Raw Line: " . htmlspecialchars(implode(",", $raw_data));
+                        }
+                    }
+                    fclose($handle);
+                    unlink($targetPath);
+                    
+                    if(count($errorLogs) > 0){
+                        $statusMsg = "Import finished. $successCount inserted, $skipCount duplicates. <br><br><b>Issues Found:</b><br>" . implode("<br>", array_slice($errorLogs, 0, 5));
+                        $msgClass = "border-red-500 bg-red-50 text-red-700";
+                    } else {
+                        $statusMsg = "Import Complete: $successCount inserted, $skipCount duplicates skipped.";
+                        $msgClass = "border-green-500 bg-green-50 text-green-700";
+                    }
+                } else {
+                    $statusMsg = "Error: Could not read the CSV data.";
+                    $msgClass = "border-red-500 bg-red-50 text-red-700";
+                }
+            } else {
+                $statusMsg = "System Error: Could not transfer file.";
+                $msgClass = "border-red-500 bg-red-50 text-red-700";
             }
+        } else {
+            $statusMsg = "Upload Error: Please upload a valid CSV.";
+            $msgClass = "border-red-500 bg-red-50 text-red-700";
         }
     }
 
-    // Admin Secure Delete
-    if(isset($_POST['btnDelete'])){
-        $dcsid = intval($_POST['dcsid']);
-        $adminUsername = $dbcon->real_escape_string(trim($_POST['admin_user']));
-        $adminPassword = $dbcon->real_escape_string(trim($_POST['admin_password']));
+    // --- SUBJECT MANAGEMENT ACTIONS ---
+    if(isset($_POST['action_type']) && $_POST['action_type'] == "add_subject"){
+        $csid = intval($_POST['subject_csid']);
+        $subCode = $dbcon->real_escape_string(trim($_POST['subject_code']));
+        $subDesc = $dbcon->real_escape_string(trim($_POST['subject_title']));
+        $subUnits = intval($_POST['subject_units']);
+        
+        $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
+            ssid INT AUTO_INCREMENT PRIMARY KEY,
+            csid INT,
+            subject_code VARCHAR(50),
+            subject_title VARCHAR(255),
+            units INT
+        )");
+        
+        $dbcon->query("INSERT INTO student_subjects (csid, subject_code, subject_title, units) VALUES ($csid, '$subCode', '$subDesc', $subUnits)");
+        echo json_encode(["status" => "success"]);
+        exit();
+    }
 
-        if ($adminUsername !== 'admin') {
-            $statusMsg = "Access Denied: Only admin account can delete.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
-        } else {
-            $checkQry = "SELECT uid FROM users WHERE nameuser = '$adminUsername' AND passname = '$adminPassword' LIMIT 1";
-            $checkRes = $dbcon->query($checkQry);
+    if(isset($_POST['action_type']) && $_POST['action_type'] == "fetch_subjects"){
+        $csid = intval($_POST['subject_csid']);
+        $output = [];
+        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid ORDER BY ssid DESC");
+        if($res){
+            while($r = $res->fetch_assoc()){
+                $output[] = $r;
+            }
+        }
+        echo json_encode($output);
+        exit();
+    }
+
+    if(isset($_POST['action_type']) && $_POST['action_type'] == "remove_subject"){
+        $ssid = intval($_POST['ssid']);
+        $dbcon->query("DELETE FROM student_subjects WHERE ssid = $ssid");
+        echo json_encode(["status" => "success"]);
+        exit();
+    }
+
+    // --- CLEAN BULK ACTION DELETE BLOCK (NO ADMIN PASSWORD SECURITY) ---
+    if(isset($_POST['btnDelete'])){
+        if(!empty($_POST['delete_ids'])) {
+            $id_array = array_map('intval', explode(',', $_POST['delete_ids']));
+            $ids_string = implode(',', $id_array);
             
-            if($checkRes && $checkRes->num_rows > 0) {
-                if($dcsid > 0) {
-                    $dbcon->query("DELETE FROM students WHERE csid = $dcsid");
-                    echo "<script>window.location.replace(window.location.href);</script>";
-                    exit();
-                }
-            } else {
-                $statusMsg = "Authorization Refused: Invalid administrator credentials.";
-                $msgClass = "border-red-500 bg-red-50 text-red-700";
+            if(!empty($ids_string)){
+                $dbcon->query("DELETE FROM students WHERE csid IN ($ids_string)");
+                echo "<script>window.location.replace(window.location.href);</script>";
+                exit();
             }
         }
     }
@@ -231,8 +397,14 @@
             <button onclick="openModal('formModal')" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
                 <i class="icon-plus"></i> Add Learner
             </button>
+            <button onclick="openModal('importModal')" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
+                <i class="icon-upload"></i> Bulk Import
+            </button>
             <button onclick="smartPrint()" class="px-5 py-2.5 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
                 <i class="icon-print"></i> Print List
+            </button>
+            <button id="bulkDeleteBtn" onclick="triggerBulkDelete()" class="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200" style="display: none;">
+                <i class="icon-trash"></i> Drop Selected (<span id="selectedCount">0</span>)
             </button>
         </div>
         
@@ -267,12 +439,14 @@
                 <table class="w-full border-collapse" id="dataTables-example">
                     <thead>
                         <tr class="bg-gray-100 border-b-2 border-gray-300">
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700 w-16 print-hide">Profile</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700 w-12 print-hide">
+                                <input type="checkbox" id="selectAllCheckboxes" class="w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500">
+                            </th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Student ID</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Student Name</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Program</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Level</th>
-                            <th class="px-4 py-3 text-center font-semibold text-gray-700 print-hide" style="min-width: 280px;">Action</th>
+                            <th class="px-4 py-3 text-center font-semibold text-gray-700 print-hide" style="min-width: 200px;">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
@@ -284,12 +458,11 @@
                                 FROM students cs ORDER BY cs.csid DESC";
                     $qryRes=$dbcon->query($strQry);
                     while($row=$qryRes->fetch_assoc()){
-                        $picPath = (!empty($row['pic']) && trim($row['pic']) !== '') ? $uploadDir . $row['pic'] : $defaultPic;
                         $fullName = trim(($row['lname'] ?? '') . ", " . ($row['fname'] ?? '') . " " . ($row['mname'] ?? ''));
                         ?>
                         <tr class="hover:bg-gray-50 transition duration-150">
                             <td class="px-4 py-3 print-hide">
-                                <img src="<?php echo htmlspecialchars($picPath, ENT_QUOTES, 'UTF-8'); ?>" class="w-16 h-16 md:w-20 md:h-20 rounded-lg object-contain border border-gray-200 shadow-sm bg-white p-1" alt="Profile" onerror="this.src='<?php echo htmlspecialchars($defaultPic, ENT_QUOTES, 'UTF-8'); ?>';">
+                                <input type="checkbox" class="student-checkbox w-4 h-4 text-green-600 border-gray-300 rounded focus:ring-green-500" value="<?php echo htmlspecialchars($row['csid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                             </td>
                             <td class="px-4 py-3 text-gray-700 font-medium"><?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
                             <td class="px-4 py-3 text-gray-800 font-semibold"><?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');?></td>
@@ -305,6 +478,8 @@
                                             data-mname="<?php echo htmlspecialchars($row['mname'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-lname="<?php echo htmlspecialchars($row['lname'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-gender="<?php echo htmlspecialchars($row['gender'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-email="<?php echo htmlspecialchars($row['email'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-smobile="<?php echo htmlspecialchars($row['smobile'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-cid="<?php echo htmlspecialchars($row['cid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-gid="<?php echo htmlspecialchars($row['gid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-did="<?php echo htmlspecialchars($row['did'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
@@ -313,17 +488,14 @@
                                             data-address="<?php echo htmlspecialchars($row['address'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
                                         <i class="icon-edit"></i> Edit
                                     </button>
-                                    <button type="button" class="flex-1 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2"
-                                            onclick="triggerPicStudent(this)"
+                                    <button type="button" class="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2"
+                                            onclick="triggerSubjectModal(this)"
                                             data-csid="<?php echo htmlspecialchars($row['csid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" 
-                                            data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>">
-                                        <i class="icon-camera"></i> Pic
-                                    </button>
-                                    <button type="button" class="flex-1 px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2"
-                                            onclick="triggerDeleteStudent(this)"
-                                            data-csid="<?php echo htmlspecialchars($row['csid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" 
-                                            data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>">
-                                        <i class="icon-trash"></i> Drop
+                                            data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-studentid="<?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-program="<?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-glevel="<?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
+                                        <i class="icon-book"></i> Subject
                                     </button>
                                 </div>
                             </td>                                    
@@ -334,6 +506,33 @@
                     </tbody>
                 </table>                            
             </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay print-hide" id="importModal" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-sm">
+        <div class="modal-content">
+            <form role="form" method="post" action="<?php echo $formActionUrl; ?>" enctype="multipart/form-data">
+                <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-6 py-4 flex justify-between items-center">
+                    <h4 class="text-lg font-bold text-white">Import Students (CSV)</h4>
+                    <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('importModal')">&times;</button>
+                </div>
+                <div class="modal-body p-6">
+                    <div class="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-200">
+                        <strong>Important:</strong> Your CSV file must have these columns in exact order: 
+                        <br><i>Student ID, First Name, Middle Name, Last Name, Gender, Program ID, Year Level ID, Department ID, Guardian, Guardian Mobile, Address, Student Email, Student Mobile.</i>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-1 text-sm">Upload CSV File *</label>
+                        <input type="file" name="csv_file" accept=".csv" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white" required>
+                    </div>
+                </div>
+                <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg">
+                    <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded" onclick="closeModal('importModal')">Cancel</button>
+                    <button type="submit" name="btnImportCSV" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded">Run Import</button>
+                </div>
+            </form>
         </div>
     </div>
 </div>
@@ -360,6 +559,14 @@
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Year Level *</label><select name="gid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $gRes=$dbcon->query("SELECT gid, glevel FROM gradelevel"); while($g=$gRes->fetch_assoc()) echo "<option value='".$g['gid']."'>".htmlspecialchars($g['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Department *</label><select name="did" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $dRes=$dbcon->query("SELECT did, department FROM departments"); while($d=$dRes->fetch_assoc()) echo "<option value='".$d['did']."'>".htmlspecialchars($d['department'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                     </div>
+                    
+                    <h5 class="text-sm font-bold text-gray-800 mb-2 border-b pb-1">Student Contact Info</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Student Email</label><input type="email" name="email" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
+                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Student Mobile</label><input type="text" name="smobile" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
+                    </div>
+
+                    <h5 class="text-sm font-bold text-gray-800 mb-2 border-b pb-1">Guardian Contact Info</h5>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Guardian Name *</label><input type="text" name="guardian" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Guardian Mobile *</label><input type="text" name="mobile" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
@@ -397,6 +604,14 @@
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Year Level</label><select name="ugid" id="edit_gid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $gRes=$dbcon->query("SELECT gid, glevel FROM gradelevel"); while($g=$gRes->fetch_assoc()) echo "<option value='".$g['gid']."'>".htmlspecialchars($g['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Department</label><select name="udid" id="edit_did" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $dRes=$dbcon->query("SELECT did, department FROM departments"); while($d=$dRes->fetch_assoc()) echo "<option value='".$d['did']."'>".htmlspecialchars($d['department'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                     </div>
+                    
+                    <h5 class="text-sm font-bold text-gray-800 mb-2 border-b pb-1">Student Contact Info</h5>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Student Email</label><input type="email" name="uemail" id="edit_email" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
+                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Student Mobile</label><input type="text" name="usmobile" id="edit_smobile" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
+                    </div>
+
+                    <h5 class="text-sm font-bold text-gray-800 mb-2 border-b pb-1">Guardian Contact Info</h5>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Guardian Name</label><input type="text" name="uguardian" id="edit_guardian" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Guardian Mobile</label><input type="text" name="umobile" id="edit_mobile" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
@@ -434,28 +649,81 @@
     </div>
 </div>
 
+<div class="modal-overlay print-hide" id="subjectModal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="bg-gradient-to-r from-purple-700 to-purple-600 px-6 py-4 flex justify-between items-center">
+                <h4 class="text-lg font-bold text-white">Curriculum Load Manager</h4>
+                <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('subjectModal')">&times;</button>
+            </div>
+            <div class="modal-body p-6">
+                <div class="mb-4 bg-purple-50 p-4 rounded-xl border border-purple-100 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-purple-900">
+                    <div><b>Name:</b> <span id="sub_student_name" class="font-semibold"></span></div>
+                    <div><b>ID Number:</b> <span id="sub_student_id" class="font-semibold"></span></div>
+                    <div><b>Program:</b> <span id="sub_program" class="font-semibold"></span></div>
+                    <div><b>Year Level:</b> <span id="sub_glevel" class="font-semibold"></span></div>
+                </div>
+
+                <form id="ajaxSubjectForm" onsubmit="saveSubjectLoad(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <input type="hidden" id="subject_csid" name="subject_csid" value="">
+                    <input type="hidden" name="action_type" value="add_subject">
+                    <div class="md:col-span-3">
+                        <label class="block text-gray-600 text-xs font-semibold mb-1">Subject Code</label>
+                        <input type="text" id="subject_code" name="subject_code" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="e.g. CC101" required>
+                    </div>
+                    <div class="md:col-span-6">
+                        <label class="block text-gray-600 text-xs font-semibold mb-1">Subject Title / Description</label>
+                        <input type="text" id="subject_title" name="subject_title" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="e.g. Introduction to Computing" required>
+                    </div>
+                    <div class="md:col-span-2">
+                        <label class="block text-gray-600 text-xs font-semibold mb-1">Units</label>
+                        <input type="number" id="subject_units" name="subject_units" min="1" max="6" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" value="3" required>
+                    </div>
+                    <div class="md:col-span-1 flex items-end">
+                        <button type="submit" class="w-full py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded text-sm shadow shadow-purple-200 transition">Add</button>
+                    </div>
+                </form>
+
+                <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-[260px] overflow-y-auto bg-white">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-gray-100 text-gray-700 border-b font-semibold">
+                            <tr>
+                                <th class="p-3">Subject Code</th>
+                                <th class="p-3">Title Description</th>
+                                <th class="p-3 w-20 text-center">Units</th>
+                                <th class="p-3 w-16 text-center">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="subjects_table_body" class="divide-y text-gray-800">
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-gray-50 flex justify-between items-center rounded-b-lg">
+                <button type="button" onclick="printSubjectSummary()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded flex items-center gap-2 shadow-sm transition">
+                    <i class="icon-print"></i> Print Load Summary
+                </button>
+                <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded" onclick="closeModal('subjectModal')">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="deleteStudentModal" class="modal-overlay print-hide" aria-hidden="true">
     <div class="modal-dialog modal-dialog-sm">
         <form method="post" action="<?php echo $formActionUrl; ?>">
             <div class="modal-content">
                 <div class="bg-red-600 px-6 py-4 flex justify-between items-center">
-                    <h4 class="text-lg font-bold text-white">Drop Learner</h4>
+                    <h4 class="text-lg font-bold text-white">Drop Selected Learners</h4>
                     <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('deleteStudentModal')">&times;</button>
                 </div>
                 <div class="modal-body p-6">
-                    <input type="hidden" name="dcsid" id="delete_csid" value="">
-                    <p class="text-gray-800 mb-4 font-medium">Delete <span id="delete_student_name" class="font-bold text-red-600"></span>?</p>
-                    <div class="border border-red-200 bg-red-50 p-4 rounded-lg">
-                        <p class="text-red-800 font-bold mb-3 text-sm">Admin Auth Required</p>
-                        <div class="space-y-3">
-                            <div><input type="text" name="admin_user" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-red-500" placeholder="Admin User" required></div>
-                            <div><input type="password" name="admin_password" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-red-500" placeholder="Password" required></div>
-                        </div>
-                    </div>
+                    <input type="hidden" name="delete_ids" id="delete_ids" value="">
+                    <p class="text-gray-800 font-medium">Are you sure you want to drop the selected student records? This action is permanent and cannot be undone.</p>
                 </div>
                 <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg">
                     <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded" onclick="closeModal('deleteStudentModal')">Cancel</button>
-                    <button type="submit" name="btnDelete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded">Delete</button>
+                    <button type="submit" name="btnDelete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded">Confirm Drop</button>
                 </div>
             </div>
         </form>
@@ -469,30 +737,21 @@
 <script src="../../assets/plugins/dataTables/dataTables.bootstrap.js"></script>
 
 <script>
-// --- NEW TAB PRINT FUNCTION ---
 function smartPrint() {
     if ($.fn.DataTable.isDataTable('#dataTables-example')) {
         var table = $('#dataTables-example').DataTable();
         var currentLength = table.page.len();
 
-        // Show all rows so they all go to the new tab
         table.page.len(-1).draw(false);
-
-        // Copy the raw HTML of the table
         var tableHTML = document.getElementById('dataTables-example').outerHTML;
-
-        // Restore the pagination on the original page
         table.page.len(currentLength).draw(false);
 
-        // Fetch PHP variables safely
         var logoSrc = "<?php echo $defaultPic; ?>";
         var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
         var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
 
-        // Open a completely new blank tab
         var printWindow = window.open('', '_blank');
 
-        // Build the formal HTML document structure for the new tab
         var html = `
         <!DOCTYPE html>
         <html>
@@ -500,8 +759,6 @@ function smartPrint() {
             <title>Print Student Directory</title>
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
-                
-                /* Letterhead Styles */
                 .header-container { text-align: center; margin-bottom: 30px; position: relative; }
                 .header-container img { position: absolute; left: 0; top: 0; width: 80px; height: 80px; object-fit: contain; }
                 .header-container h2 { margin: 0; font-size: 24px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
@@ -509,65 +766,33 @@ function smartPrint() {
                 .header-container .doc-title { font-weight: bold; margin-top: 20px; font-size: 16px; text-decoration: underline; }
                 .header-container .dept-title { font-weight: bold; font-size: 16px; margin-top: 5px; }
                 .info-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
-
-                /* Table Styles */
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
                 th, td { border: 1px solid #000; padding: 10px 8px; text-align: left; font-size: 14px; }
                 th { font-weight: bold; background-color: #f8f9fa; }
-
-                /* Hide unwanted columns (Profile and Action) */
-                th:first-child, td:first-child,
-                th:last-child, td:last-child { display: none !important; }
-
-                /* Footer Signature Styles */
+                th:first-child, td:first-child, th:last-child, td:last-child { display: none !important; }
                 .footer { margin-top: 50px; display: flex; justify-content: flex-end; }
                 .signature-box { text-align: left; }
                 .signature-box p { margin: 0 0 30px 0; font-size: 14px; }
                 .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; min-width: 150px; display: inline-block; padding-bottom: 2px;}
-
-                /* Print optimizations */
-                @media print {
-                    @page { margin: 0.5in; }
-                    body { margin: 0; }
-                }
+                @media print { @page { margin: 0.5in; } body { margin: 0; } }
             </style>
         </head>
         <body>
             <div class="header-container">
                 <img src="${logoSrc}" alt="Logo" onerror="this.style.display='none'">
                 <h2>AMANDO COPE COLLEGE</h2>
-                <p>A.A. Berces Street, Baranghawon, Tabaco City</p>
+                <p>A.A Baranghawon Tabaco City</p>
                 <div class="doc-title">ENROLLED STUDENTS DIRECTORY</div>
                 <div class="dept-title">COLLEGE DEPARTMENT</div>
             </div>
-            
-            <div class="info-row">
-                <span>Semester: ${sem}</span>
-                <span>School Year: ${sy}</span>
-            </div>
-
+            <div class="info-row"><span>Semester: ${sem}</span><span>School Year: ${sy}</span></div>
             ${tableHTML}
-
-            <div class="footer">
-                <div class="signature-box">
-                    <p>Prepared by:</p>
-                    <div class="signature-line">ACC REGISTRAR</div>
-                </div>
-            </div>
-
-            <script>
-                // Auto-trigger the print dialog when the new tab finishes loading
-                window.onload = function() {
-                    setTimeout(function() {
-                        window.print();
-                    }, 500);
-                };
-            <\/script>
+            <div class="footer"><div class="signature-box"><p>Prepared by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
+            <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<\/script>
         </body>
         </html>
         `;
 
-        // Write the HTML to the new tab
         printWindow.document.open();
         printWindow.document.write(html);
         printWindow.document.close();
@@ -576,7 +801,198 @@ function smartPrint() {
     }
 }
 
-// MODAL CONTROLS
+function triggerSubjectModal(btn) {
+    var csid = btn.getAttribute('data-csid') || '';
+    document.getElementById('subject_csid').value = csid;
+    document.getElementById('sub_student_name').innerText = btn.getAttribute('data-name') || '';
+    document.getElementById('sub_student_id').innerText = btn.getAttribute('data-studentid') || '';
+    document.getElementById('sub_program').innerText = btn.getAttribute('data-program') || '';
+    document.getElementById('sub_glevel').innerText = btn.getAttribute('data-glevel') || '';
+    
+    document.getElementById('subject_code').value = '';
+    document.getElementById('subject_title').value = '';
+    document.getElementById('subject_units').value = '3';
+    
+    fetchSubjectLoadList(csid);
+    openModal('subjectModal');
+}
+
+function fetchSubjectLoadList(csid) {
+    $.ajax({
+        type: 'POST',
+        url: window.location.href,
+        data: { action_type: 'fetch_subjects', subject_csid: csid },
+        dataType: 'json',
+        success: function(data) {
+            var html = '';
+            if(data.length === 0) {
+                html = '<tr><td colspan="4" class="p-4 text-center text-gray-400 italic">No subject courses added to this curriculum load yet.</td></tr>';
+            } else {
+                data.forEach(function(row) {
+                    html += `<tr class="hover:bg-gray-50 transition border-b border-gray-100">
+                        <td class="p-3 font-semibold text-purple-900">${escapeHtml(row.subject_code)}</td>
+                        <td class="p-3 text-gray-700">${escapeHtml(row.subject_title)}</td>
+                        <td class="p-3 text-center font-bold text-gray-600">${row.units}</td>
+                        <td class="p-3 text-center">
+                            <button type="button" onclick="removeSubjectFromLoad(${row.ssid}, ${csid})" class="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                        </td>
+                    </tr>`;
+                });
+            }
+            document.getElementById('subjects_table_body').innerHTML = html;
+        }
+    });
+}
+
+function saveSubjectLoad(e) {
+    e.preventDefault();
+    var formData = $('#ajaxSubjectForm').serialize();
+    var csid = document.getElementById('subject_csid').value;
+    
+    $.ajax({
+        type: 'POST',
+        url: window.location.href,
+        data: formData,
+        dataType: 'json',
+        success: function(res) {
+            document.getElementById('subject_code').value = '';
+            document.getElementById('subject_title').value = '';
+            fetchSubjectLoadList(csid);
+        }
+    });
+}
+
+function removeSubjectFromLoad(ssid, csid) {
+    if(confirm("Remove this subject from the student's curriculum load?")){
+        $.ajax({
+            type: 'POST',
+            url: window.location.href,
+            data: { action_type: 'remove_subject', ssid: ssid },
+            dataType: 'json',
+            success: function(res) {
+                fetchSubjectLoadList(csid);
+            }
+        });
+    }
+}
+
+function printSubjectSummary() {
+    var name = document.getElementById('sub_student_name').innerText;
+    var idNum = document.getElementById('sub_student_id').innerText;
+    var program = document.getElementById('sub_program').innerText;
+    var level = document.getElementById('sub_glevel').innerText;
+    var tableHTML = document.getElementById('subjects_table_body').outerHTML;
+    
+    var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
+    var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
+    var logoSrc = "<?php echo $defaultPic; ?>";
+
+    var printWindow = window.open('', '_blank');
+    var html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Subject Summary Load - ${idNum}</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; color: #000; line-height: 1.4; }
+            .header-container { text-align: center; margin-bottom: 25px; position: relative; }
+            .header-container img { position: absolute; left: 0; top: 0; width: 75px; height: 75px; object-fit: contain; }
+            .header-container h2 { margin: 0; font-size: 22px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
+            .header-container p { margin: 4px 0; font-size: 13px; }
+            .doc-title { font-weight: bold; margin-top: 15px; font-size: 16px; text-decoration: underline; letter-spacing: 0.5px; }
+            
+            .student-info-grid { border: 1px solid #000; padding: 12px; border-radius: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; margin-bottom: 20px; }
+            .student-info-grid div { margin-bottom: 2px; }
+
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
+            th { font-weight: bold; background-color: #f3f4f6; }
+            td:last-child, th:last-child { display: none !important; }
+            
+            .footer { margin-top: 60px; display: flex; justify-content: flex-end; font-size: 13px; }
+            .signature-box { text-align: left; }
+            .signature-box p { margin: 0 0 35px 0; font-size: 13px; }
+            .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; width: 180px; display: inline-block; padding-bottom: 2px; }
+            @media print { @page { margin: 0.5in; } body { margin: 0; } }
+        </style>
+    </head>
+    <body>
+        <div class="header-container">
+            <img src="${logoSrc}" alt="Logo">
+            <h2>AMANDO COPE COLLEGE</h2>
+            <p>A.A Baranghawon Tabaco City</p>
+            <div class="doc-title">OFFICIAL SUBJECT SUMMARY & ENROLLMENT LOAD</div>
+        </div>
+        
+        <div class="student-info-grid">
+            <div><b>Student ID:</b> ${idNum}</div>
+            <div><b>School Year:</b> ${sy}</div>
+            <div><b>Student Name:</b> ${name}</div>
+            <div><b>Semester:</b> ${sem}</div>
+            <div><b>Program Load:</b> ${program}</div>
+            <div><b>Year Level:</b> ${level}</div>
+        </div>
+
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 25%;">Subject Code</th>
+                    <th style="width: 60%;">Subject Title / Description</th>
+                    <th style="width: 15%; text-align: center;">Units</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tableHTML}
+            </tbody>
+        </table>
+
+        <div class="footer">
+            <div class="signature-box">
+                <p>Issued by:</p>
+                <div class="signature-line">ACC REGISTRAR</div>
+            </div>
+        </div>
+
+        <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
+    </body>
+    </html>`;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+}
+
+function escapeHtml(string) {
+    return String(string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function updateBulkDeleteButton() {
+    var table = $('#dataTables-example').DataTable();
+    var checkedBoxes = table.$('.student-checkbox:checked');
+    var count = checkedBoxes.length;
+
+    if (count > 0) {
+        $('#bulkDeleteBtn').fadeIn(150).css('display', 'inline-flex');
+        $('#selectedCount').text(count);
+    } else {
+        $('#bulkDeleteBtn').fadeOut(150);
+        $('#selectAllCheckboxes').prop('checked', false);
+    }
+}
+
+function triggerBulkDelete() {
+    var table = $('#dataTables-example').DataTable();
+    var checkedBoxes = table.$('.student-checkbox:checked');
+    var ids = [];
+    
+    checkedBoxes.each(function() {
+        ids.push($(this).val());
+    });
+    
+    document.getElementById('delete_ids').value = ids.join(',');
+    openModal('deleteStudentModal');
+}
+
 function triggerEditStudent(btn) {
     document.getElementById('edit_csid').value = btn.getAttribute('data-csid') || '';
     document.getElementById('edit_studentid').value = btn.getAttribute('data-studentid') || '';
@@ -584,6 +1000,8 @@ function triggerEditStudent(btn) {
     document.getElementById('edit_mname').value = btn.getAttribute('data-mname') || '';
     document.getElementById('edit_lname').value = btn.getAttribute('data-lname') || '';
     document.getElementById('edit_gender').value = btn.getAttribute('data-gender') || '';
+    document.getElementById('edit_email').value = btn.getAttribute('data-email') || '';
+    document.getElementById('edit_smobile').value = btn.getAttribute('data-smobile') || '';
     document.getElementById('edit_cid').value = btn.getAttribute('data-cid') || '';
     document.getElementById('edit_gid').value = btn.getAttribute('data-gid') || '';
     document.getElementById('edit_did').value = btn.getAttribute('data-did') || '';
@@ -591,18 +1009,6 @@ function triggerEditStudent(btn) {
     document.getElementById('edit_mobile').value = btn.getAttribute('data-mobile') || '';
     document.getElementById('edit_address').value = btn.getAttribute('data-address') || '';
     openModal('editStudentModal');
-}
-
-function triggerPicStudent(btn) {
-    document.getElementById('pic_csid').value = btn.getAttribute('data-csid') || '';
-    document.getElementById('pic_student_name').innerText = btn.getAttribute('data-name') || '';
-    openModal('picStudentModal');
-}
-
-function triggerDeleteStudent(btn) {
-    document.getElementById('delete_csid').value = btn.getAttribute('data-csid') || '';
-    document.getElementById('delete_student_name').innerText = btn.getAttribute('data-name') || '';
-    openModal('deleteStudentModal');
 }
 
 function openModal(id) {
@@ -621,24 +1027,76 @@ window.onclick = function(event) {
     }
 }
 
-// DATATABLES INITIALIZATION
+// =========================================================================
+// 🔒 ISOLATED DATATABLES INITIALIZATION ENGINE
+// =========================================================================
 $(document).ready(function() {
+    $.fn.dataTable.ext.search = [];
+
     var table = $('#dataTables-example').DataTable({
         "responsive": true,
         "pageLength": 10,
         "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
         "paging": true,
-        "info": true
+        "info": true,
+        "language": {
+            "search": "Search Learner: ", 
+            "searchPlaceholder": "Type to filter...",
+            "paginate": {
+                "previous": "Previous",
+                "next": "Next"
+            }
+        },
+        "drawCallback": function(settings) {
+            var api = this.api();
+            var pages = api.page.info().pages;
+            if (pages <= 1) {
+                $('.dataTables_paginate').hide();
+            } else {
+                $('.dataTables_paginate').show();
+            }
+        }
     });
 
-    $('#filterProgram').on('change', function() {
-        var val = $.fn.dataTable.util.escapeRegex($(this).val());
-        table.column(3).search(val ? '^'+val+'$' : '', true, false).draw();
+    // Master toggle checkbox controller
+    $('#selectAllCheckboxes').on('change', function() {
+        var isChecked = $(this).is(':checked');
+        table.$('.student-checkbox').prop('checked', isChecked);
+        updateBulkDeleteButton();
     });
 
-    $('#filterLevel').on('change', function() {
-        var val = $.fn.dataTable.util.escapeRegex($(this).val());
-        table.column(4).search(val ? '^'+val+'$' : '', true, false).draw();
+    // Live listening node for row interactions (Pagination safe context)
+    $(document).on('change', '.student-checkbox', function() {
+        updateBulkDeleteButton();
+    });
+
+    // 🚀 Dynamic Dropdown Custom Filter Extension (Table ID safe)
+    $.fn.dataTable.ext.search.push(
+        function(settings, data, dataIndex) {
+            if (settings.nTable.id !== 'dataTables-example') {
+                return true; 
+            }
+
+            var selectedProgram = $('#filterProgram').val() || '';
+            var selectedLevel = $('#filterLevel').val() || '';
+            
+            var rowProgram = (data[3] || '').trim(); // Column index 3 is Program
+            var rowLevel = (data[4] || '').trim();   // Column index 4 is Year Level
+            
+            if (selectedProgram !== '' && rowProgram !== selectedProgram.trim()) {
+                return false;
+            }
+            if (selectedLevel !== '' && rowLevel !== selectedLevel.trim()) {
+                return false;
+            }
+            
+            return true; 
+        }
+    );
+
+    // Bind dropdown selectors to trigger table state updates seamlessly
+    $('#filterProgram, #filterLevel').on('change', function() {
+        table.draw();
     });
 });
 </script>
