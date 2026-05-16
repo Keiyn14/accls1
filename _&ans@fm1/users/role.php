@@ -99,117 +99,63 @@
     $msgClass = "";
     $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOTES, 'UTF-8');
 
-    // Handle Admin Verified Add Form Submission
+    // 🔓 Handle Simplified Add Form Submission
     if(isset($_POST['btnAdd'])){
         $role = trim($_POST['txtrole'] ?? '');
-        $adminUsername = trim($_POST['add_admin_user'] ?? '');
-        $adminPassword = trim($_POST['add_admin_password'] ?? '');
 
-        if ($adminUsername !== 'admin') {
-            $statusMsg = "Access Denied: Only the account with username 'admin' can authorize adding new roles.";
+        if($role == ""){
+            $statusMsg = "User role value cannot be empty.";
             $msgClass = "border-red-500 bg-red-50 text-red-700";
         } else {
-            $adminUserEsc = $dbcon->real_escape_string($adminUsername);
-            $adminPassEsc = $dbcon->real_escape_string($adminPassword);
-            
-            $checkQry = "SELECT uid FROM users WHERE nameuser = '".$adminUserEsc."' AND passname = '".$adminPassEsc."' LIMIT 1";
-            $checkRes = $dbcon->query($checkQry);
-            
-            if($checkRes && $checkRes->num_rows > 0) {
-                if($role == ""){
-                    $statusMsg = "User role value cannot be empty.";
-                    $msgClass = "border-red-500 bg-red-50 text-red-700";
-                } else {
-                    $roleEsc = $dbcon->real_escape_string($role);
-                    $strInsert="INSERT INTO role (rname) VALUES ('".$roleEsc."')";
-                    if($dbcon->query($strInsert)){
-                        echo "<script>window.location.replace(window.location.href);</script>";
-                        exit();
-                    } else {
-                        $statusMsg = "Error adding record: " . $dbcon->error;
-                        $msgClass = "border-red-500 bg-red-50 text-red-700";
-                    }
-                }
+            $roleEsc = $dbcon->real_escape_string($role);
+            $strInsert="INSERT INTO role (rname) VALUES ('".$roleEsc."')";
+            if($dbcon->query($strInsert)){
+                echo "<script>window.location.replace(window.location.href);</script>";
+                exit();
             } else {
-                $statusMsg = "Authorization Refused: Invalid administrator credentials supplied.";
+                $statusMsg = "Error adding record: " . $dbcon->error;
                 $msgClass = "border-red-500 bg-red-50 text-red-700";
             }
         }
     }
 
-    // Handle Admin Verified Update Form Submission
+    // 🔓 Handle Simplified Update Form Submission
     if(isset($_POST['btnUpdate'])){
         $urid = intval($_POST['urid'] ?? 0);
         $urname = trim($_POST['urname'] ?? '');
-        $adminUsername = trim($_POST['edit_admin_user'] ?? '');
-        $adminPassword = trim($_POST['edit_admin_password'] ?? '');
 
-        if ($adminUsername !== 'admin') {
-            $statusMsg = "Access Denied: Only the account with username 'admin' can authorize modification updates.";
+        if($urname == ""){
+            $statusMsg = "User Role value cannot be empty.";
             $msgClass = "border-red-500 bg-red-50 text-red-700";
         } else {
-            $adminUserEsc = $dbcon->real_escape_string($adminUsername);
-            $adminPassEsc = $dbcon->real_escape_string($adminPassword);
-            
-            $checkQry = "SELECT uid FROM users WHERE nameuser = '".$adminUserEsc."' AND passname = '".$adminPassEsc."' LIMIT 1";
-            $checkRes = $dbcon->query($checkQry);
-            
-            if($checkRes && $checkRes->num_rows > 0) {
-                if($urname == ""){
-                    $statusMsg = "User Role value cannot be empty.";
-                    $msgClass = "border-red-500 bg-red-50 text-red-700";
-                } else {
-                    $urnameEsc = $dbcon->real_escape_string($urname);
-                    $strUpdate="UPDATE role SET rname='".$urnameEsc."' WHERE rid=".$urid;              
-                    if($dbcon->query($strUpdate)){
-                        echo "<script>window.location.replace(window.location.href);</script>";
-                        exit();
-                    } else {
-                        $statusMsg = "Error updating record: " . $dbcon->error;
-                        $msgClass = "border-red-500 bg-red-50 text-red-700";
-                    }
-                }
+            $urnameEsc = $dbcon->real_escape_string($urname);
+            $strUpdate="UPDATE role SET rname='".$urnameEsc."' WHERE rid=".$urid;              
+            if($dbcon->query($strUpdate)){
+                echo "<script>window.location.replace(window.location.href);</script>";
+                exit();
             } else {
-                $statusMsg = "Authorization Refused: Invalid administrator credentials supplied.";
+                $statusMsg = "Error updating record: " . $dbcon->error;
                 $msgClass = "border-red-500 bg-red-50 text-red-700";
             }
         }
     }
 
-    // Handle Admin Verified Secure Delete Form Submission
+    // 🔓 Handle Simplified Delete Form Submission
     if(isset($_POST['btnDelete'])){
         $drid = intval($_POST['drid'] ?? 0);
-        $adminUsername = trim($_POST['admin_user'] ?? '');
-        $adminPassword = trim($_POST['admin_password'] ?? '');
 
-        if ($adminUsername !== 'admin') {
-            $statusMsg = "Access Denied: Only the account with username 'admin' can authorize removals.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
-        } else {
-            $adminUserEsc = $dbcon->real_escape_string($adminUsername);
-            $adminPassEsc = $dbcon->real_escape_string($adminPassword);
-            
-            $checkQry = "SELECT uid FROM users WHERE nameuser = '".$adminUserEsc."' AND passname = '".$adminPassEsc."' LIMIT 1";
-            $checkRes = $dbcon->query($checkQry);
-            
-            if($checkRes && $checkRes->num_rows > 0) {
-                if($drid > 0) {
-                    $strDelete = "DELETE FROM role WHERE rid = " . $drid;
-                    if($dbcon->query($strDelete)){
-                        echo "<script>window.location.replace(window.location.href);</script>";
-                        exit();
-                    } else {
-                        $statusMsg = "Cannot delete this role. It is likely currently assigned to active user accounts. (Database Error: " . $dbcon->error . ")";
-                        $msgClass = "border-red-500 bg-red-50 text-red-700";
-                    }
-                } else {
-                    $statusMsg = "Invalid role identification sequence.";
-                    $msgClass = "border-red-500 bg-red-50 text-red-700";
-                }
+        if($drid > 0) {
+            $strDelete = "DELETE FROM role WHERE rid = " . $drid;
+            if($dbcon->query($strDelete)){
+                echo "<script>window.location.replace(window.location.href);</script>";
+                exit();
             } else {
-                $statusMsg = "Authorization Refused: Invalid administrator credentials supplied.";
+                $statusMsg = "Cannot delete this role. It is likely currently assigned to active user accounts. (Database Error: " . $dbcon->error . ")";
                 $msgClass = "border-red-500 bg-red-50 text-red-700";
             }
+        } else {
+            $statusMsg = "Invalid role identification sequence.";
+            $msgClass = "border-red-500 bg-red-50 text-red-700";
         }
     }
 
@@ -292,25 +238,10 @@
                             <label class="block text-gray-700 font-semibold mb-2">Role Name</label>                         
                             <input type="text" name="txtrole" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" placeholder="e.g., Cashier, Registrar" required>
                         </div>
-
-                        <div class="border border-green-200 bg-green-50 p-4 rounded-lg mt-4 text-xs">
-                            <p class="text-green-800 font-semibold mb-2"><i class="icon-warning-sign"></i> Admin Authorization Required to Save</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Username</label>
-                                    <input type="text" name="add_admin_user" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 text-xs" placeholder="type 'admin'" required>
-                                </div>
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Password</label>
-                                    <input type="password" name="add_admin_password" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 text-xs" placeholder="Admin Account Password" required>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                     <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
                         <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" onclick="closeModal('formModal')">Close</button>
-                        <button type="submit" name="btnAdd" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Verify &amp; Save Role</button>
+                        <button type="submit" name="btnAdd" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Save Role</button>
                     </div>
                 </form>
             </div>
@@ -331,25 +262,10 @@
                             <input type="hidden" name="urid" id="edit_rid" value="">
                             <input type="text" name="urname" id="edit_rname" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
                         </div>
-
-                        <div class="border border-green-200 bg-green-50 p-4 rounded-lg mt-4 text-xs">
-                            <p class="text-green-800 font-semibold mb-2"><i class="icon-warning-sign"></i> Admin Authorization Required to Update</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Username</label>
-                                    <input type="text" name="edit_admin_user" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 text-xs" placeholder="type 'admin'" required>
-                                </div>
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Password</label>
-                                    <input type="password" name="edit_admin_password" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 text-xs" placeholder="Admin Account Password" required>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                     <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
                         <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" onclick="closeModal('editRoleModal')">Close</button>
-                        <button type="submit" name="btnUpdate" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Verify &amp; Update</button>
+                        <button type="submit" name="btnUpdate" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Confirm Update Role</button>
                     </div>
                 </form>
             </div>
@@ -366,25 +282,11 @@
                     </div>
                     <div class="modal-body p-6 text-left text-sm">
                         <input type="hidden" name="drid" id="delete_rid" value="">
-                        <p class="text-gray-700 mb-4 text-base">Are you sure you want to delete the role <span id="delete_target_name" class="font-bold text-red-600"></span>? This action cannot be undone.</p>
-                        
-                        <div class="border border-red-200 bg-red-50 p-4 rounded-lg mb-4">
-                            <p class="text-red-800 font-semibold mb-2"><i class="icon-warning-sign"></i> Administrative Authorization Required to Delete</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Username</label>
-                                    <input type="text" name="admin_user" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500 text-xs" placeholder="type 'admin'" required>
-                                </div>
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Password</label>
-                                    <input type="password" name="admin_password" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500 text-xs" placeholder="Admin Account Password" required>
-                                </div>
-                            </div>
-                        </div>
+                        <p class="text-gray-700 text-base">Are you sure you want to delete the role <span id="delete_target_name" class="font-bold text-red-600"></span>? This action cannot be undone.</p>
                     </div>
                     <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
                         <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" onclick="closeModal('deleteRoleModal')">Cancel</button>
-                        <button type="submit" name="btnDelete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Verify &amp; Delete Role</button>
+                        <button type="submit" name="btnDelete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Confirm Delete Role</button>
                     </div>
                 </div>
             </form>

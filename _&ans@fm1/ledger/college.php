@@ -60,85 +60,11 @@
         padding: 0.4rem 0.75rem;
         outline: none;
     }
-    .dataTables_wrapper .dataTables_info {
-        float: left;
-        margin-top: 1.25rem;
-        color: #4b5563;
-        font-size: 0.875rem;
-        font-weight: 500;
-    }
-
-    /* --- FIXED PAGINATION DESIGN ENGINE --- */
-    .dataTables_wrapper .dataTables_paginate {
-        float: right;
-        margin-top: 1rem;
-    }
-    .dataTables_paginate ul.pagination {
-        display: inline-flex !important;
-        list-style: none !important;
-        padding-left: 0 !important;
-        margin: 0 !important;
-        border-radius: 0.5rem !important;
-        overflow: hidden;
-        border: 1px solid #d1d5db !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-    .dataTables_paginate ul.pagination li {
-        display: inline !important;
-        margin: 0 !important;
-        padding: 0 !important;
-    }
-    .dataTables_paginate ul.pagination li a {
-        position: relative;
-        display: block;
-        padding: 0.5rem 0.875rem;
-        font-size: 0.875rem;
-        font-weight: 600;
-        line-height: 1.25;
-        color: #374151 !important;
-        background-color: #ffffff;
-        border-right: 1px solid #d1d5db;
-        text-decoration: none !important;
-        transition: all 0.15s ease-in-out;
-        cursor: pointer;
-    }
-    .dataTables_paginate ul.pagination li:last-child a {
-        border-right: none;
-    }
-    .dataTables_paginate ul.pagination li a:hover {
-        background-color: #f0fdf4 !important;
-        color: #15803d !important;
-    }
-    .dataTables_paginate ul.pagination li.active a {
-        background-color: #16a34a !important;
-        color: #ffffff !important;
-        border-color: #16a34a !important;
-        cursor: default;
-    }
-    .dataTables_paginate ul.pagination li.disabled a {
-        color: #9ca3af !important;
-        background-color: #f9fafb !important;
-        cursor: not-allowed;
-        pointer-events: none;
-    }
-    
-    @media print {
-        .print-hide, .dataTables_filter, .dataTables_info, .dataTables_paginate, .dataTables_length {
-            display: none !important;
-        }
-        #dataTables-ledger th:last-child, #dataTables-ledger td:last-child { display: none !important; }
-        table { width: 100% !important; border-collapse: collapse !important; }
-        td, th { border: 1px solid #000 !important; padding: 8px !important; }
-    }
 </style>
 
 <br />
 <?php 
-    // =========================================================================
-    // --- DIRECTORY PATH CONFIGURATION (LOCKED INSTANCE VALUES) ---
-    // =========================================================================
-    $defaultPic = "../assets/logo.png";   
-    $dept = '1'; // 1 -> College
+    $dept = '1'; // College
     
     // get current active school year
     $str = "SELECT syid, syname, status FROM sy WHERE status='Active'";
@@ -154,149 +80,163 @@
     $cssid = $csData['sid'] ?? 0;
     $cssemester = $csData['semester'] ?? '';
     
-    $today = date("Y-m-d");
-
+    $today = date("Y-m-d"); //
     $statusMsg = "";
     $msgClass = "";
     $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOTES, 'UTF-8');
 
-    // 🚀 BULLETPROOF EXCEPTION-SAFE SCHEMA UPDATE ENGINE
-    $checkCol = $dbcon->query("SHOW COLUMNS FROM `payment` LIKE 'or_number'");
-    if ($checkCol && $checkCol->num_rows == 0) {
-        $dbcon->query("ALTER TABLE `payment` ADD COLUMN `or_number` VARCHAR(100) DEFAULT '' AFTER `paymentdate`");
-    }
-
-    // AJAX Action Catch Hook (Fetch itemized historical table rows)
-    if(isset($_POST['action_type']) && $_POST['action_type'] == "fetch_payment_history"){
-        $clid = intval($_POST['clid']);
-        $output = [];
-        $res = $dbcon->query("SELECT or_number, paymentdate, amtpaid, balance FROM payment WHERE clid = $clid AND amtpaid > 0 ORDER BY pid DESC");
-        if($res){
-            while($r = $res->fetch_assoc()){
-                $output[] = $r;
-            }
+    // AJAX Action Catch Hooks
+    if(isset($_POST['action_type'])){
+        // Payment Logs
+        if($_POST['action_type'] == "fetch_payment_history"){
+            $output = [];
+            $clid = intval($_POST['clid']);
+            $res = $dbcon->query("SELECT or_number, paymentdate, amtpaid, balance FROM payment WHERE clid = $clid AND amtpaid > 0 ORDER BY pid DESC");
+            while($r = $res->fetch_assoc()) { $output[] = $r; }
+            echo json_encode($output);
+            exit();
         }
-        echo json_encode($output);
-        exit();
-    }
-
-    // Process Add to Ledger Account File Card 
-    if(isset($_POST['btnAdd'])){
-        $csid = intval($_POST['lnrName']);
-        $amount = floatval($_POST['amount']);
         
-        $checkQry = "SELECT csid, syid, sid FROM ledger WHERE csid=".$csid." AND syid=".$csyid." AND sid=".$cssid;
-        $checkRes = $dbcon->query($checkQry);
-        if ($checkRes && $checkRes->num_rows > 0){
-            $statusMsg = "Warning: A financial ledger file card already exists for this student in the current term.";
-            $msgClass = "border-yellow-500 bg-yellow-50 text-yellow-700";
-        } else {
-            $strInsert = "INSERT INTO ledger (did, syid, sid, csid, amt, tfee, balance, remarks, transdate) 
-                          VALUES (".$dept.", ".$csyid.", ".$cssid.", ".$csid.", '".$amount."', '0', '".$amount."', 'Unpaid', '".$today."')";
+        // Subject Catalog Load
+        if($_POST['action_type'] == "get_student_subjects"){
+            $output = [];
+            $csid = intval($_POST['csid']);
+            $res = $dbcon->query("SELECT s.sub_id, s.subject_code, s.subject_title, s.units, s.price 
+                                  FROM student_subjects ss 
+                                  INNER JOIN subjects s ON ss.sub_id = s.sub_id 
+                                  WHERE ss.csid=$csid AND ss.syid=$csyid AND ss.sid=$cssid");
+            while($r = $res->fetch_assoc()) { $output[] = $r; }
+            echo json_encode($output);
+            exit();
+        }
+
+        // Add Course Subject to Mapping List
+        if($_POST['action_type'] == "add_subject_to_student"){
+            $csid = intval($_POST['csid']);
+            $sub_id = intval($_POST['sub_id']);
             
-            if($dbcon->query($strInsert)){
-                $getClid = "SELECT clid, csid FROM ledger WHERE did=".$dept." ORDER BY clid DESC LIMIT 1";
-                $gcRes = $dbcon->query($getClid);
-                $gcData = $gcRes->fetch_assoc();
-                $cglid = $gcData['clid'];
-                $ccsid = $gcData['csid'];
-                
-                $pQry = "INSERT INTO payment (did, clid, csid, syid, sid, amount, amtpaid, balance, paymentdate, or_number) 
-                         VALUES (".$dept.", ".$cglid.", ".$ccsid.", ".$csyid.", ".$cssid.", '".$amount."', 0, '".$amount."', '".$today."', '')";
-                $dbcon->query($pQry);
-                
-                echo "<script>window.location.replace(window.location.href);</script>";
-                exit();
+            $chk = $dbcon->query("SELECT ss_id FROM student_subjects WHERE csid=$csid AND sub_id=$sub_id AND syid=$csyid AND sid=$cssid");
+            if($chk && $chk->num_rows == 0) {
+                $dbcon->query("INSERT INTO student_subjects (csid, sub_id, syid, sid) VALUES ($csid, $sub_id, $csyid, $cssid)");
+            }
+            echo json_encode(["status" => "success"]);
+            exit();
+        }
+
+        // Drop Course Subject from Mapping List
+        if($_POST['action_type'] == "drop_student_subject"){
+            $csid = intval($_POST['csid']);
+            $sub_id = intval($_POST['sub_id']);
+            $dbcon->query("DELETE FROM student_subjects WHERE csid=$csid AND sub_id=$sub_id AND syid=$csyid AND sid=$cssid");
+            echo json_encode(["status" => "success"]);
+            exit();
+        }
+    }
+
+    // =========================================================================
+    // 🎯 LIVE AUTOMATIC LEDGER FINANCIAL SYNCHRONIZER
+    // =========================================================================
+    $getTermStudents = $dbcon->query("SELECT csid FROM students WHERE syid=$csyid AND sid=$cssid AND did=$dept");
+    if($getTermStudents) {
+        while($stRow = $getTermStudents->fetch_assoc()) {
+            $student_csid = intval($stRow['csid']);
+            
+            // Sum costs from master table via relational inner query
+            $uRes = $dbcon->query("SELECT SUM(s.price) as total_tuition FROM student_subjects ss INNER JOIN subjects s ON ss.sub_id = s.sub_id WHERE ss.csid=$student_csid AND ss.syid=$csyid AND ss.sid=$cssid");
+            $uData = $uRes->fetch_assoc();
+            $calculatedAssessment = floatval($uData['total_tuition'] ?? 0.00);
+            
+            // Validate if ledger record entry row is present
+            $checkLedgerEx = $dbcon->query("SELECT clid, balance FROM ledger WHERE csid=$student_csid AND syid=$csyid AND sid=$cssid");
+            if($checkLedgerEx && $checkLedgerEx->num_rows == 0) {
+                // Initialize Account Card with zero balance status values
+                $insLedger = "INSERT INTO ledger (did, syid, sid, csid, amt, tfee, balance, remarks, transdate) 
+                              VALUES ($dept, $csyid, $cssid, $student_csid, '$calculatedAssessment', '0', '$calculatedAssessment', 'Unpaid', '$today')";
+                if($dbcon->query($insLedger)) {
+                    $newClid = $dbcon->insert_id;
+                    $dbcon->query("INSERT INTO payment (did, clid, csid, syid, sid, amount, amtpaid, balance, paymentdate, or_number) 
+                                   VALUES ($dept, $newClid, $student_csid, $csyid, $cssid, '$calculatedAssessment', 0, '$calculatedAssessment', '$today', '')");
+                }
             } else {
-                $statusMsg = "Error: Could not establish new student account ledger details.";
-                $msgClass = "border-red-500 bg-red-50 text-red-700";
+                $lRow = $checkLedgerEx->fetch_assoc();
+                $existingClid = intval($lRow['clid']);
+                
+                // Get the total sum of payments recorded
+                $pSum = $dbcon->query("SELECT SUM(amtpaid) as total_paid FROM payment WHERE clid=$existingClid AND amtpaid > 0");
+                $pSumData = $pSum->fetch_assoc();
+                $totalPaidSoFar = floatval($pSumData['total_paid'] ?? 0.00);
+                
+                $updatedBalance = $calculatedAssessment - $totalPaidSoFar;
+                $updatedRemarks = ($updatedBalance <= 0) ? 'Paid' : 'Unpaid';
+                
+                $dbcon->query("UPDATE ledger SET amt='$calculatedAssessment', tfee='$totalPaidSoFar', balance='$updatedBalance', remarks='$updatedRemarks' WHERE clid=$existingClid");
+                $dbcon->query("UPDATE payment SET amount='$calculatedAssessment' WHERE clid=$existingClid AND amtpaid=0 LIMIT 1");
             }
         }
     }
-    
+
     // Process Cash Remittance Transaction Submission
     if(isset($_POST['btnProcessPayment'])){
-        $scolid = intval($_POST['colid']);
-        $samt = floatval($_POST['amt']);
-        $scsid = intval($_POST['scsid']);
-        $or_number = $dbcon->real_escape_string(trim($_POST['or_number']));
-        $payment_date = $dbcon->real_escape_string($_POST['payment_date']);
+        $scolid = intval($_POST['colid']); //
+        $samt = floatval($_POST['amt']); //
+        $scsid = intval($_POST['scsid']); //
+        $or_number = $dbcon->real_escape_string(trim($_POST['or_number'])); //
+        $payment_date = $dbcon->real_escape_string($_POST['payment_date']); //
             
-        $strTF = "SELECT SUM(amtpaid) as totalFee FROM payment WHERE csid=".$scsid." AND syid=".$csyid." AND sid=".$cssid;
-        $tfRes = $dbcon->query($strTF);
-        $tfData = $tfRes->fetch_assoc();
-        $tFees = floatval($tfData['totalFee']);
+        $strTF = "SELECT SUM(amtpaid) as totalFee FROM payment WHERE clid=".$scolid; //
+        $tfRes = $dbcon->query($strTF); 
+        $tfData = $tfRes->fetch_assoc(); 
+        $tFees = floatval($tfData['totalFee'] ?? 0);
                 
-        $strPayment = "SELECT amount, balance FROM payment WHERE did=".$dept." AND clid=".$scolid." AND csid=".$scsid." AND syid=".$csyid." AND sid=".$cssid." ORDER BY pid DESC LIMIT 1";
+        $strPayment = "SELECT amount, balance FROM payment WHERE clid=".$scolid." ORDER BY pid DESC LIMIT 1"; 
         $resPayment = $dbcon->query($strPayment);    
         $paymentData = $resPayment->fetch_assoc();        
-        $amount = floatval($paymentData['amount']);
-        $balance = floatval($paymentData['balance']);
+        $amount = floatval($paymentData['amount']); 
+        $balance = floatval($paymentData['balance']); 
 
-        if($samt > $balance){
-            $statusMsg = "Warning: The input remittance amount is greater than the student's current outstanding balance.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
+        if($samt > $balance){ 
+            $statusMsg = "Warning: Remittance amount exceeds student's current outstanding balance."; 
+            $msgClass = "border-red-500 bg-red-50 text-red-700"; 
         } else {
-            $cAmtPaid = $tFees + $samt;
-            $cBalance = $balance - $samt;
+            $cAmtPaid = $tFees + $samt; 
+            $cBalance = $balance - $samt; 
             
             $strUP = "INSERT INTO payment (did, clid, csid, syid, sid, amount, amtpaid, balance, paymentdate, or_number) 
-                      VALUES (".$dept.", ".$scolid.", ".$scsid.", ".$csyid.", ".$cssid.", '".$amount."', '".$samt."', '".$cBalance."', '".$payment_date."', '".$or_number."')";
+                      VALUES (".$dept.", ".$scolid.", ".$scsid.", ".$csyid.", ".$cssid.", '".$amount."', '".$samt."', '".$cBalance."', '".$payment_date."', '".$or_number."')"; 
             $dbcon->query($strUP);        
             
-            $remStat = ($cBalance == 0) ? 'Paid' : 'Unpaid';
-            $strCledger = "UPDATE ledger SET remarks='".$remStat."', tfee='".$cAmtPaid."', balance='".$cBalance."' 
-                           WHERE clid=".$scolid." AND syid=".$csyid." AND sid=".$cssid." AND csid=".$scsid." AND did=".$dept;
+            $remStat = ($cBalance <= 0) ? 'Paid' : 'Unpaid'; 
+            $strCledger = "UPDATE ledger SET remarks='".$remStat."', tfee='".$cAmtPaid."', balance='".$cBalance."' WHERE clid=".$scolid; 
             $dbcon->query($strCledger);    
             
-            echo "<script>window.location.replace(window.location.href);</script>";
-            exit();
+            echo "<script>window.location.replace(window.location.href);</script>"; 
+            exit(); 
         }
     }
 ?>
 
 <div class="p-6 space-y-6">
-    <?php if(!empty($statusMsg)) { ?>
-        <div class="border-l-4 p-4 rounded-r-lg shadow-sm print-hide <?php echo $msgClass; ?>">
-            <span class="font-bold">System Status:</span> <?php echo htmlspecialchars($statusMsg, ENT_QUOTES, 'UTF-8'); ?>
-        </div>
-    <?php } ?>
-
     <div class="flex flex-wrap lg:flex-nowrap gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-hide">
-        <div class="flex flex-wrap gap-3">
-            <button onclick="openModal('openLedgerModal')" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
-                <i class="icon-plus"></i> Open Student Ledger
-            </button>
-            <button onclick="smartPrintDirectory()" class="px-5 py-2.5 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
-                <i class="icon-print"></i> Print Directory List
-            </button>
-        </div>
-        
+        <button onclick="smartPrintDirectory()" class="px-5 py-2.5 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
+            <i class="icon-print"></i> Print Directory List
+        </button>
         <div class="flex flex-wrap gap-3 items-center">
-            <div class="text-sm font-semibold text-gray-600">Filters:</div>
             <select id="filterProgram" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
                 <option value="">All Programs</option>
                 <?php
-                $fRes = $dbcon->query("SELECT program FROM offerings GROUP BY program");
-                while($f = $fRes->fetch_assoc()) echo "<option value='".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
+                $fRes = $dbcon->query("SELECT program FROM offerings GROUP BY program"); 
+                while($f = $fRes->fetch_assoc()) echo "<option value='".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; 
                 ?>
             </select>
-            <select id="filterLevel" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
-                <option value="">All Levels</option>
-                <?php
-                $glRes = $dbcon->query("SELECT glevel FROM gradelevel GROUP BY glevel");
-                while($gl = $glRes->fetch_assoc()) echo "<option value='".htmlspecialchars($gl['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($gl['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
-                ?>
-            </select>
-            <div class="ml-2 text-gray-600 font-medium border-l border-gray-300 pl-4 hidden md:block">
-                Term: <span class="text-green-700 font-bold"><?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?> (<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>)</span>
+            <div class="ml-2 text-gray-600 font-medium border-l border-gray-300 pl-4">
+                Term Instance: <span class="text-green-700 font-bold"><?php echo htmlspecialchars($s); ?> (<?php echo htmlspecialchars($cssemester); ?>)</span>
             </div>
         </div>
     </div>
 
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 print-hide">
-            <h3 class="text-white text-lg font-semibold">Student Financial Ledger Accounts Directory</h3>
+            <h3 class="text-white text-lg font-semibold">Student Account Ledgers (Subject Catalog Auto-Calculation Engine)</h3>
         </div>
         <div class="p-6">
             <div class="overflow-x-auto">
@@ -306,66 +246,62 @@
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Student ID</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Student Name</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Program</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Level</th>
                             <th class="px-4 py-3 text-right font-semibold text-gray-700">Assessment Charge</th>
                             <th class="px-4 py-3 text-right font-semibold text-gray-700">Total Payments</th>
                             <th class="px-4 py-3 text-right font-semibold text-gray-700">Remaining Balance</th>
-                            <th class="px-4 py-3 text-center font-semibold text-gray-700 print-hide" style="min-width: 220px;">Action Window</th>
+                            <th class="px-4 py-3 text-center font-semibold text-gray-700 print-hide" style="min-width: 340px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                     <?php 
                     $strQry = "SELECT l.clid, l.syid, l.sid, l.csid, l.amt, l.tfee, l.balance, l.remarks,
-                                s.studentid, s.fname, s.mname, s.lname,
-                                g.glevel, o.program
+                                s.studentid, s.fname, s.mname, s.lname, o.program,
+                                (SELECT COUNT(ss_id) FROM student_subjects WHERE csid=s.csid AND syid=$csyid AND sid=$cssid) as subject_count
                                 FROM ledger l
                                 LEFT JOIN students s ON s.csid = l.csid
-                                LEFT JOIN gradelevel g ON g.gid = s.gid
                                 LEFT JOIN offerings o ON o.cid = s.cid
                                 WHERE l.syid = $csyid AND l.sid = $cssid AND l.did = $dept
-                                ORDER BY s.lname ASC";
-                    $qryRes = $dbcon->query($strQry);
-                    while($row = $qryRes->fetch_assoc()){
-                        if(empty($row['csid'])) continue;
-                        $fullName = trim(($row['lname'] ?? '') . ", " . ($row['fname'] ?? '') . " " . ($row['mname'] ?? ''));
-                        $charge = floatval($row['amt']);
-                        $paid = floatval($row['tfee']);
-                        $balance = floatval($row['balance']);
+                                ORDER BY s.lname ASC"; 
+                    $qryRes = $dbcon->query($strQry); 
+                    while($row = $qryRes->fetch_assoc()){ 
+                        if(empty($row['csid'])) continue; 
+                        $fullName = trim(($row['lname'] ?? '') . ", " . ($row['fname'] ?? '') . " " . ($row['mname'] ?? '')); 
+                        $charge = floatval($row['amt']); 
+                        $paid = floatval($row['tfee']); 
+                        $balance = floatval($row['balance']); 
+                        $subCount = intval($row['subject_count'] ?? 0);
                         ?>
                         <tr class="hover:bg-gray-50 transition duration-150">
-                            <td class="px-4 py-3 text-gray-700 font-medium"><?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
-                            <td class="px-4 py-3 text-gray-800 font-semibold"><?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');?></td>
-                            <td class="px-4 py-3 text-green-700 font-semibold"><?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
-                            <td class="px-4 py-3 text-gray-600"><?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
-                            <td class="px-4 py-3 text-right font-medium text-gray-900">₱<?php echo number_format($charge, 2); ?></td>
-                            <td class="px-4 py-3 text-right font-medium text-blue-600">₱<?php echo number_format($paid, 2); ?></td>
-                            <td class="px-4 py-3 text-right font-bold <?php echo ($balance <= 0) ? 'text-green-600' : 'text-red-600'; ?>">
-                                ₱<?php echo number_format($balance, 2); ?>
+                            <td class="px-4 py-3 text-gray-700 font-medium"><?php echo htmlspecialchars($row['studentid'] ?? '');?></td> 
+                            <td class="px-4 py-3 text-gray-800 font-semibold">
+                                <?php echo htmlspecialchars($fullName);?>
+                                <span class="block text-xs font-semibold text-blue-600 mt-0.5"><i class="icon-book"></i> <?php echo $subCount; ?> Subjects Enrolled</span>
+                            </td>
+                            <td class="px-4 py-3 text-green-700 font-semibold"><?php echo htmlspecialchars($row['program'] ?? '');?></td> 
+                            <td class="px-4 py-3 text-right font-medium text-gray-900">₱<?php echo number_format($charge, 2); ?></td> 
+                            <td class="px-4 py-3 text-right font-medium text-blue-600">₱<?php echo number_format($paid, 2); ?></td> 
+                            <td class="px-4 py-3 text-right font-bold <?php echo ($balance <= 0) ? 'text-green-600' : 'text-red-600'; ?>"> 
+                                ₱<?php echo number_format($balance, 2); ?> 
                             </td>
                             <td class="px-4 py-3 print-hide">
-                                <div class="flex gap-2 w-full">
-                                    <button type="button" class="flex-1 px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition inline-flex items-center justify-center gap-1 text-xs"
-                                            onclick="triggerCashPaymentWindow(this)"
-                                            data-clid="<?php echo $row['clid']; ?>"
-                                            data-csid="<?php echo $row['csid']; ?>"
-                                            data-idnum="<?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-charge="<?php echo $charge; ?>"
-                                            data-paid="<?php echo $paid; ?>"
-                                            data-balance="<?php echo $balance; ?>">
-                                        <i class="icon-money"></i> Record Payment
+                                <div class="flex gap-1.5 w-full">
+                                    <button type="button" class="px-2.5 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded text-xs"
+                                            onclick="openManageSubjectsWindow(<?php echo $row['csid']; ?>, '<?php echo htmlspecialchars($fullName, ENT_QUOTES); ?>')">
+                                        <i class="icon-book"></i> Enrolled Subjects
                                     </button>
-                                    <button type="button" class="flex-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-sm transition inline-flex items-center justify-center gap-1 text-xs"
+                                    <button type="button" class="px-2.5 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded text-xs"
+                                            onclick="triggerCashPaymentWindow(this)"
+                                            data-clid="<?php echo $row['clid']; ?>" data-csid="<?php echo $row['csid']; ?>"
+                                            data-idnum="<?php echo htmlspecialchars($row['studentid'] ?? ''); ?>" data-name="<?php echo htmlspecialchars($fullName); ?>"
+                                            data-charge="<?php echo $charge; ?>" data-paid="<?php echo $paid; ?>" data-balance="<?php echo $balance; ?>">
+                                        <i class="icon-money"></i> Pay/Downpayment
+                                    </button>
+                                    <button type="button" class="px-2.5 py-1.5 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded text-xs"
                                             onclick="printStatementOfAccount(this)"
-                                            data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-idnum="<?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-program="<?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-level="<?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
-                                            data-charge="<?php echo number_format($charge, 2); ?>"
-                                            data-paid="<?php echo number_format($paid, 2); ?>"
-                                            data-balance="<?php echo number_format($balance, 2); ?>"
-                                            data-clid="<?php echo $row['clid']; ?>">
-                                        <i class="icon-file-text"></i> Statement
+                                            data-name="<?php echo htmlspecialchars($fullName); ?>" data-idnum="<?php echo htmlspecialchars($row['studentid'] ?? ''); ?>"
+                                            data-program="<?php echo htmlspecialchars($row['program'] ?? ''); ?>" data-charge="<?php echo number_format($charge, 2); ?>"
+                                            data-paid="<?php echo number_format($paid, 2); ?>" data-balance="<?php echo number_format($balance, 2); ?>" data-clid="<?php echo $row['clid']; ?>">
+                                        <i class="icon-file-text"></i> SOA
                                     </button>
                                 </div>
                             </td>                                    
@@ -380,37 +316,49 @@
     </div>
 </div>
 
-<div class="modal-overlay print-hide" id="openLedgerModal" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-sm">
+<div class="modal-overlay print-hide" id="manageSubjectsModal" aria-hidden="true">
+    <div class="modal-dialog">
         <div class="modal-content">
-            <form role="form" method="post" action="<?php echo $formActionUrl; ?>">
-                <div class="bg-gradient-to-r from-green-700 to-green-600 px-6 py-4 flex justify-between items-center">
-                    <h4 class="text-lg font-bold text-white">Open Student Payment Ledger</h4>
-                    <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('openLedgerModal')">&times;</button>
+            <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-6 py-4 flex justify-between items-center">
+                <h4 class="text-lg font-bold text-white"><i class="icon-book"></i> Student Subject Registration</h4>
+                <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('manageSubjectsModal'); window.location.reload();">&times;</button>
+            </div>
+            <div class="modal-body p-6 space-y-4">
+                <div class="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-sm">
+                    Student Target: <span id="subj_student_name" class="font-bold"></span>
                 </div>
-                <div class="modal-body p-6 space-y-4">
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-1 text-sm">Select College Student *</label>
-                        <select name="lnrName" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white" required>
-                            <option value="">-- Choose Student Record --</option>
-                            <?php 
-                            $sRes = $dbcon->query("SELECT csid, studentid, fname, lname FROM students ORDER BY lname ASC");
-                            while($sRow = $sRes->fetch_assoc()){
-                                echo "<option value='".$sRow['csid']."'>".htmlspecialchars($sRow['text'] ?? $sRow['lname'].", ".$sRow['fname']." [".$sRow['studentid']."]", ENT_QUOTES, 'UTF-8')."</option>";
+                
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end bg-gray-50 p-4 rounded-xl border">
+                    <div class="md:col-span-3">
+                        <label class="block text-gray-700 font-semibold mb-1 text-xs">Select Subject from Catalog</label>
+                        <select id="select_catalog_subject" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white">
+                            <?php
+                            $sb = $dbcon->query("SELECT sub_id, subject_code, subject_title, price FROM subjects WHERE did=$dept ORDER BY subject_code ASC");
+                            while($sbr = $sb->fetch_assoc()){
+                                echo "<option value='".$sbr['sub_id']."'>".$sbr['subject_code']." - ".$sbr['subject_title']." (₱".number_format($sbr['price'],2).")</option>";
                             }
                             ?>
                         </select>
                     </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-1 text-sm">Total Semester Tuition/Assessment Fee (₱) *</label>
-                        <input type="number" step="0.01" name="amount" min="0" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" placeholder="0.00" required>
-                    </div>
+                    <button type="button" onclick="addSubjectToStudentAction()" class="w-full py-2 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700">Add Entry</button>
                 </div>
-                <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg">
-                    <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded" onclick="closeModal('openLedgerModal')">Cancel</button>
-                    <button type="submit" name="btnAdd" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded">Create Account Card</button>
-                </div>
-            </form>
+
+                <table class="w-full text-left text-xs border border-gray-200 rounded">
+                    <thead>
+                        <tr class="bg-gray-100 text-gray-700 font-semibold border-b">
+                            <th class="p-2">Code</th>
+                            <th class="p-2">Title</th>
+                            <th class="p-2 text-right">Price Fee</th>
+                            <th class="p-2 text-center">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="student_enrolled_subjects_tbody" class="divide-y">
+                        </tbody>
+                </table>
+            </div>
+            <div class="modal-footer bg-gray-50 flex justify-end p-4 rounded-b-lg">
+                <button type="button" class="px-5 py-2 bg-blue-600 text-white font-bold rounded shadow" onclick="closeModal('manageSubjectsModal'); window.location.reload();">Done &amp; Sync Ledger</button>
+            </div>
         </div>
     </div>
 </div>
@@ -427,65 +375,116 @@
                     <input type="hidden" name="colid" id="pay_clid" value="">
                     <input type="hidden" name="scsid" id="pay_csid" value="">
 
-                    <div class="mb-4 bg-green-50 p-4 rounded-xl border border-green-100 grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-green-900">
-                        <div><b>Student Name:</b> <span id="lbl_student_name" class="font-semibold"></span></div>
-                        <div><b>Student ID:</b> <span id="lbl_student_id" class="font-semibold"></span></div>
-                        <div><b>Total Tuition Assessment:</b> ₱<span id="lbl_total_charge" class="font-semibold"></span></div>
-                        <div><b>Total Payments Logged:</b> ₱<span id="lbl_total_paid" class="font-semibold"></span></div>
+                    <div class="mb-4 bg-green-50 p-4 rounded-xl border text-sm text-green-900 grid grid-cols-2 gap-2">
+                        <div><b>Student Name:</b> <span id="lbl_student_name"></span></div>
+                        <div><b>Student ID:</b> <span id="lbl_student_id"></span></div>
+                        <div><b>Total Tuition Assessment:</b> ₱<span id="lbl_total_charge"></span></div>
+                        <div><b>Total Payments Logged:</b> ₱<span id="lbl_total_paid"></span></div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 bg-gray-50 p-4 rounded-xl border">
                         <div>
-                            <label class="block text-gray-700 font-semibold mb-1 text-xs">Physical Receipt Number (O.R. #) *</label>
-                            <input type="text" name="or_number" class="w-full px-3 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 text-sm" placeholder="O.R. No." required>
+                            <label class="block text-gray-700 font-semibold mb-1 text-xs">Receipt / O.R. # *</label>
+                            <input type="text" name="or_number" class="w-full px-3 py-1.5 border rounded text-sm" placeholder="e.g., OR-10234" required>
                         </div>
                         <div>
                             <label class="block text-gray-700 font-semibold mb-1 text-xs">Payment Date *</label>
-                            <input type="date" name="payment_date" class="w-full px-3 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 text-sm" value="<?php echo $today; ?>" required>
+                            <input type="date" name="payment_date" class="w-full px-3 py-1.5 border rounded text-sm" value="<?php echo $today; ?>" required>
                         </div>
                         <div>
                             <label class="block text-gray-700 font-semibold mb-1 text-xs">Amount Paid (₱) *</label>
-                            <input type="number" step="0.01" min="0.01" name="amt" id="pay_input_amount" oninput="calculateLiveCashBalance()" class="w-full px-3 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 font-bold text-sm" placeholder="0.00" required>
+                            <input type="number" step="0.01" min="0.01" name="amt" id="pay_input_amount" oninput="calculateLiveCashBalance()" class="w-full px-3 py-1.5 border rounded font-bold text-sm" placeholder="0.00" required>
                         </div>
                     </div>
                     
-                    <div class="mb-4 p-3 bg-gray-100 rounded-lg flex justify-between items-center text-sm">
+                    <div class="mb-4 p-3 bg-gray-100 rounded-lg flex justify-between text-sm">
                         <span class="font-semibold text-gray-700">Expected Outstanding Balance:</span>
                         <span class="font-bold text-lg text-gray-900" id="lbl_live_balance">₱0.00</span>
                     </div>
 
-                    <h5 class="text-xs font-bold text-gray-700 mb-2 uppercase tracking-wide">Historical Cash Transactions Logged</h5>
-                    <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-[180px] overflow-y-auto bg-white">
+                    <h5 class="text-xs font-bold text-gray-700 mb-2 uppercase">Historical Receipts Log</h5>
+                    <div class="overflow-x-auto border rounded-lg max-h-[150px] overflow-y-auto bg-white">
                         <table class="w-full text-left text-xs">
                             <thead class="bg-gray-100 text-gray-700 border-b font-semibold">
                                 <tr>
-                                    <th class="p-2.5">Receipt Number (O.R. #)</th>
-                                    <th class="p-2.5">Date Logged</th>
-                                    <th class="p-2.5 text-right">Amount Paid</th>
+                                    <th class="p-2">Receipt Number</th>
+                                    <th class="p-2">Date Logged</th>
+                                    <th class="p-2 text-right">Amount Paid</th>
                                 </tr>
                             </thead>
-                            <tbody id="payment_history_table_body" class="divide-y text-gray-600">
-                                </tbody>
+                            <tbody id="payment_history_table_body" class="divide-y text-gray-600"></tbody>
                         </table>
                     </div>
                 </div>
-                <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg">
-                    <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded text-sm" onclick="closeModal('cashPaymentModal')">Cancel</button>
-                    <button type="submit" name="btnProcessPayment" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded text-sm shadow-sm">Save Transaction</button>
+                <div class="modal-footer bg-gray-50 flex justify-end gap-3 p-4 rounded-b-lg">
+                    <button type="button" class="px-4 py-2 bg-gray-300 text-gray-800 rounded font-semibold text-sm" onclick="closeModal('cashPaymentModal')">Cancel</button>
+                    <button type="submit" name="btnProcessPayment" class="px-4 py-2 bg-green-600 text-white rounded font-semibold text-sm shadow-sm">Save Transaction</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
-<script src="../../assets/plugins/jquery-2.0.3.min.js"></script>
-<script src="../../assets/plugins/bootstrap/js/bootstrap.min.js"></script>
-<script src="../../assets/plugins/modernizr-2.6.2-respond-1.1.0.min.js"></script>
-<script src="../../assets/plugins/dataTables/jquery.dataTables.js"></script>
-<script src="../../assets/plugins/dataTables/dataTables.bootstrap.js"></script>
-
 <script>
+var active_student_csid = 0;
 var currentOutstandingBalance = 0;
+
+function openManageSubjectsWindow(csid, studentName) {
+    active_student_csid = csid;
+    document.getElementById('subj_student_name').innerText = studentName;
+    loadStudentSubjectsTable();
+    openModal('manageSubjectsModal');
+}
+
+function loadStudentSubjectsTable() {
+    $.ajax({
+        type: 'POST',
+        url: window.location.href,
+        data: { action_type: 'get_student_subjects', csid: active_student_csid },
+        dataType: 'json',
+        success: function(res) {
+            var html = '';
+            if(res.length === 0) {
+                html = '<tr><td colspan="4" class="p-3 text-center text-gray-400 italic">No course subjects enrolled for this term profile yet.</td></tr>';
+            } else {
+                res.forEach(function(row) {
+                    html += `<tr>
+                        <td class="p-2 font-bold">${row.subject_code}</td>
+                        <td class="p-2">${row.subject_title} (${row.units} Units)</td>
+                        <td class="p-2 text-right text-green-700 font-semibold">₱${parseFloat(row.price).toFixed(2)}</td>
+                        <td class="p-2 text-center">
+                            <button type="button" onclick="dropSubjectAction(${row.sub_id})" class="px-2 py-0.5 bg-red-600 text-white rounded text-[10px]">Drop</button>
+                        </td>
+                    </tr>`;
+                });
+            }
+            document.getElementById('student_enrolled_subjects_tbody').innerHTML = html;
+        }
+    });
+}
+
+function addSubjectToStudentAction() {
+    var sub_id = document.getElementById('select_catalog_subject').value;
+    if(!sub_id) return;
+    $.ajax({
+        type: 'POST',
+        url: window.location.href,
+        data: { action_type: 'add_subject_to_student', csid: active_student_csid, sub_id: sub_id },
+        dataType: 'json',
+        success: function() { loadStudentSubjectsTable(); }
+    });
+}
+
+function dropSubjectAction(sub_id) {
+    if(!confirm('Drop this subject assignment?')) return;
+    $.ajax({
+        type: 'POST',
+        url: window.location.href,
+        data: { action_type: 'drop_student_subject', csid: active_student_csid, sub_id: sub_id },
+        dataType: 'json',
+        success: function() { loadStudentSubjectsTable(); }
+    });
+}
 
 function triggerCashPaymentWindow(btn) {
     var clid = btn.getAttribute('data-clid');
@@ -504,7 +503,6 @@ function triggerCashPaymentWindow(btn) {
     document.getElementById('lbl_student_id').innerText = idnum;
     document.getElementById('lbl_total_charge').innerText = charge.toFixed(2);
     document.getElementById('lbl_total_paid').innerText = paid.toFixed(2);
-    
     document.getElementById('pay_input_amount').value = '';
     document.getElementById('lbl_live_balance').innerText = '₱' + balance.toFixed(2);
 
@@ -527,15 +525,10 @@ function fetchPaymentLogsSubtable(clid) {
         success: function(data) {
             var html = '';
             if(data.length === 0) {
-                html = '<tr><td colspan="3" class="p-3 text-center text-gray-400 italic">No previous payments logged on this ledger account record.</td></tr>';
+                html = '<tr><td colspan="3" class="p-2 text-center text-gray-400 italic">No ledger history.</td></tr>';
             } else {
                 data.forEach(function(row) {
-                    var orNo = row.or_number ? row.or_number : '<span class="text-gray-400 italic">Initial Setup</span>';
-                    html += `<tr class="hover:bg-gray-50 transition border-b">
-                        <td class="p-2.5 font-semibold text-green-900">${orNo}</td>
-                        <td class="p-2.5">${row.paymentdate}</td>
-                        <td class="p-2.5 text-right font-bold text-gray-900">₱${parseFloat(row.amtpaid).toFixed(2)}</td>
-                    </tr>`;
+                    html += `<tr><td class="p-2 font-bold">${row.or_number}</td><td class="p-2">${row.paymentdate}</td><td class="p-2 text-right font-bold">₱${parseFloat(row.amtpaid).toFixed(2)}</td></tr>`;
                 });
             }
             document.getElementById('payment_history_table_body').innerHTML = html;
@@ -547,14 +540,10 @@ function printStatementOfAccount(btn) {
     var name = btn.getAttribute('data-name');
     var idnum = btn.getAttribute('data-idnum');
     var program = btn.getAttribute('data-program');
-    var level = btn.getAttribute('data-level');
     var charge = btn.getAttribute('data-charge');
     var paid = btn.getAttribute('data-paid');
     var balance = btn.getAttribute('data-balance');
     var clid = btn.getAttribute('data-clid');
-
-    var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
-    var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
     var logoSrc = "<?php echo $defaultPic; ?>";
 
     $.ajax({
@@ -564,238 +553,30 @@ function printStatementOfAccount(btn) {
         dataType: 'json',
         success: function(records) {
             var rowHtml = '';
-            if(records.length === 0) {
-                rowHtml = '<tr><td colspan="3" style="text-align:center; padding:12px; font-style:italic; color:#666;">No cash remittances recorded on this account sheet.</td></tr>';
-            } else {
-                records.forEach(function(r) {
-                    if (parseFloat(r.amtpaid) <= 0) return;
-                    rowHtml += `<tr>
-                        <td style="padding:8px; border:1px solid #000; font-weight:bold;">${r.or_number}</td>
-                        <td style="padding:8px; border:1px solid #000;">${r.paymentdate}</td>
-                        <td style="padding:8px; border:1px solid #000; text-align:right; font-weight:bold;">₱${parseFloat(r.amtpaid).toFixed(2)}</td>
-                    </tr>`;
-                });
-            }
+            records.forEach(function(r) {
+                rowHtml += `<tr><td><b>${r.or_number}</b></td><td>${r.paymentdate}</td><td style="text-align:right;"><b>₱${parseFloat(r.amtpaid).toFixed(2)}</b></td></tr>`;
+            });
 
             var printWindow = window.open('', '_blank');
-            var htmlOutput = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Statement of Account - ${idnum}</title>
-                <style>
-                    body { font-family: Arial, sans-serif; margin: 40px; color: #000; line-height: 1.4; }
-                    .header-container { text-align: center; margin-bottom: 25px; position: relative; }
-                    .header-container img { position: absolute; left: 0; top: 0; width: 75px; height: 75px; object-fit: contain; }
-                    .header-container h2 { margin: 0; font-size: 22px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
-                    .header-container p { margin: 4px 0; font-size: 13px; }
-                    .doc-title { font-weight: bold; margin-top: 15px; font-size: 16px; text-decoration: underline; letter-spacing: 0.5px; }
-                    
-                    .student-info-grid { border: 1px solid #000; padding: 12px; border-radius: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; margin-bottom: 20px; }
-                    
-                    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-                    th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
-                    th { font-weight: bold; background-color: #f3f4f6; }
-                    
-                    .summary-flex-box { margin-top: 20px; border: 1px solid #000; padding: 10px; border-radius: 4px; display: inline-block; float: right; min-width: 250px; font-size: 13px; }
-                    .summary-flex-box div { display: flex; justify-content: space-between; margin-bottom: 4px; }
-                    .summary-flex-box .final-row { border-top: 1px dashed #000; padding-top: 4px; font-weight: bold; font-size: 14px; }
-
-                    .footer { margin-top: 180px; display: flex; justify-content: flex-end; font-size: 13px; clear: both; }
-                    .signature-box { text-align: left; }
-                    .signature-box p { margin: 0 0 35px 0; font-size: 13px; }
-                    .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; width: 180px; display: inline-block; padding-bottom: 2px; }
-                    @media print { @page { margin: 0.5in; } body { margin: 0; } }
-                </style>
-            </head>
+            printWindow.document.write(`
+            <html><head><title>SOA - ${idnum}</title><style>body{font-family:Arial;margin:30px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #000;padding:8px;}</style></head>
             <body>
-                <div class="header-container">
-                    <img src="${logoSrc}" alt="Logo">
-                    <h2>AMANDO COPE COLLEGE</h2>
-                    <p>A.A Baranghawon Tabaco City</p>
-                    <div class="doc-title">OFFICIAL STATEMENT OF STUDENT ACCOUNT</div>
+                <div style="text-align:center;"><img src="${logoSrc}" width="70"><h2 style="margin:0;">AMANDO COPE COLLEGE</h2><p>Official Student Statement of Account</p></div>
+                <hr>
+                <p><b>Student ID:</b> ${idnum} | <b>Name:</b> ${name} | <b>Program:</b> ${program}</p>
+                <h3>Cash Remittances Log</h3>
+                <table><thead><tr><th>OR #</th><th>Date</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${rowHtml}</tbody></table>
+                <div style="margin-top:20px;text-align:right;font-size:14px;">
+                    <p>Total Assessment: <b>₱${charge}</b></p><p>Total Paid: <b>₱${paid}</b></p><hr><p style="font-size:16px;color:red;">Remaining Balance: <b>₱${balance}</b></p>
                 </div>
-                
-                <div class="student-info-grid">
-                    <div><b>Student ID:</b> ${idnum}</div>
-                    <div><b>School Year:</b> ${sy}</div>
-                    <div><b>Student Name:</b> ${name}</div>
-                    <div><b>Semester:</b> ${sem}</div>
-                    <div><b>Program:</b> ${program}</div>
-                    <div><b>Year Level:</b> ${level}</div>
-                </div>
-
-                <h3>Breakdown of Verified Cash Remittances</h3>
-                <table>
-                    <thead>
-                        <tr>
-                            <th style="width: 30%;">Receipt Number (O.R. #)</th>
-                            <th style="width: 30%;">Date Paid</th>
-                            <th style="width: 40%; text-align: right;">Amount Paid</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${rowHtml}
-                    </tbody>
-                </table>
-
-                <div class="summary-flex-box">
-                    <div><span>Total Term Assessment:</span> <span>₱${charge}</span></div>
-                    <div><span>Total Payments Logged:</span> <span style="color:blue;">₱${paid}</span></div>
-                    <div class="final-row"><span>Remaining Balance:</span> <span style="color:red;">₱${balance}</span></div>
-                </div>
-
-                <div class="footer">
-                    <div class="signature-box">
-                        <p>Certified Correct:</p>
-                        <div class="signature-line">ACC REGISTRAR</div>
-                    </div>
-                </div>
-
-                <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
-            </body>
-            </html>`;
-
-            printWindow.document.open();
-            printWindow.document.write(htmlOutput);
+                <script>window.onload=function(){window.print();};<\/script>
+            </body></html>`);
             printWindow.document.close();
         }
     });
 }
 
-function smartPrintDirectory() {
-    if ($.fn.DataTable.isDataTable('#dataTables-ledger')) {
-        var table = $('#dataTables-ledger').DataTable();
-        var currentLength = table.page.len();
-
-        table.page.len(-1).draw(false);
-        var tableHTML = document.getElementById('dataTables-ledger').outerHTML;
-        table.page.len(currentLength).draw(false);
-
-        var logoSrc = "<?php echo $defaultPic; ?>";
-        var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
-        var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
-
-        var printWindow = window.open('', '_blank');
-        var html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Print Financial Ledger Directory</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
-                .header-container { text-align: center; margin-bottom: 30px; position: relative; }
-                .header-container img { position: absolute; left: 0; top: 0; width: 80px; height: 80px; object-fit: contain; }
-                .header-container h2 { margin: 0; font-size: 24px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
-                .header-container p { margin: 5px 0 0 0; font-size: 14px; }
-                .header-container .doc-title { font-weight: bold; margin-top: 20px; font-size: 16px; text-decoration: underline; }
-                .info-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
-                table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-                th, td { border: 1px solid #000; padding: 10px 8px; text-align: left; font-size: 14px; }
-                th { font-weight: bold; background-color: #f8f9fa; }
-                th:last-child, td:last-child { display: none !important; }
-                .footer { margin-top: 50px; display: flex; justify-content: flex-end; }
-                .signature-box { text-align: left; }
-                .signature-box p { margin: 0 0 30px 0; font-size: 14px; }
-                .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; min-width: 150px; display: inline-block; padding-bottom: 2px;}
-                @media print { @page { margin: 0.5in; } body { margin: 0; } }
-            </style>
-        </head>
-        <body>
-            <div class="header-container">
-                <img src="${logoSrc}" alt="Logo">
-                <h2>AMANDO COPE COLLEGE</h2>
-                <p>A.A Baranghawon Tabaco City</p>
-                <div class="doc-title">STUDENTS FINANCIAL LEDGER DIRECTORY</div>
-            </div>
-            <div class="info-row"><span>Semester: ${sem}</span><span>School Year: ${sy}</span></div>
-            ${tableHTML}
-            <div class="footer"><div class="signature-box"><p>Prepared by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
-            <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<\/script>
-        </body>
-        </html>`;
-
-        printWindow.document.open();
-        printWindow.document.write(html);
-        printWindow.document.close();
-    } else {
-        window.print();
-    }
-}
-
-function openModal(id) {
-    var modal = document.getElementById(id);
-    if (modal) modal.classList.add('active');
-}
-
-function closeModal(id) {
-    var modal = document.getElementById(id);
-    if (modal) modal.classList.remove('active');
-}
-
-window.onclick = function(event) {
-    if (event.target.classList.contains('modal-overlay')) {
-        event.target.classList.remove('active');
-    }
-}
-
-// =========================================================================
-// 🔒 SAFE DATATABLES LEDGER FILTERS ENGINE
-// =========================================================================
-$(document).ready(function() {
-    $.fn.dataTable.ext.search = [];
-
-    var table = $('#dataTables-ledger').DataTable({
-        "responsive": true,
-        "pageLength": 10,
-        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
-        "paging": true,
-        "info": true,
-        "language": {
-            "search": "Search Ledger Card: ", 
-            "searchPlaceholder": "Type student or ID...",
-            "paginate": {
-                "previous": "Previous",
-                "next": "Next"
-            }
-        },
-        "drawCallback": function(settings) {
-            var api = this.api();
-            var pages = api.page.info().pages;
-            if (pages <= 1) {
-                $('.dataTables_paginate').hide();
-            } else {
-                $('.dataTables_paginate').show();
-            }
-        }
-    });
-
-    // Dynamic isolated search extension block
-    $.fn.dataTable.ext.search.push(
-        function(settings, data, dataIndex) {
-            if (settings.nTable.id !== 'dataTables-ledger') {
-                return true; 
-            }
-
-            var selectedProgram = $('#filterProgram').val() || '';
-            var selectedLevel = $('#filterLevel').val() || '';
-            
-            var rowProgram = (data[2] || '').trim(); // Index 2 is Program
-            var rowLevel = (data[3] || '').trim();   // Index 3 is Level
-            
-            if (selectedProgram !== '' && rowProgram !== selectedProgram.trim()) {
-                return false;
-            }
-            if (selectedLevel !== '' && rowLevel !== selectedLevel.trim()) {
-                return false;
-            }
-            
-            return true; 
-        }
-    );
-
-    $('#filterProgram, #filterLevel').on('change', function() {
-        table.draw();
-    });
-});
+function openModal(id) { document.getElementById(id).classList.add('active'); }
+function closeModal(id) { document.getElementById(id).classList.remove('active'); }
+$(document).ready(function() { $('#dataTables-ledger').DataTable({ "responsive": true, "pageLength": 10 }); });
 </script>

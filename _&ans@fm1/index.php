@@ -114,8 +114,8 @@ session_start();
 					include "glevel/gradelevel.php";
 				}elseif($pgload=="collegestudents"){
 					include "students/colstudents.php";
-				}elseif($pgload=="shsstudents"){
-					include "students/shsstudents.php";
+				}elseif($pgload=="subjectscatalog"){
+                    include "students/subjects_catalog.php"; // New Catalog View
 				}elseif($pgload=="status"){
 					include "status/stats.php";
 				}elseif($pgload=="Departments"){

@@ -122,79 +122,46 @@
         }
     }
 
-    // Handle Admin Verified Update Form Submission
+    // 🔓 Bypassed/Simplified Update Logic For Easy Development Changes
     if(isset($_POST['btnUpdate'])){
         $unameuser = trim($_POST['unameuser'] ?? '');
         $upassname = trim($_POST['upassname'] ?? '');
         $urole = intval($_POST['urole'] ?? 0); 
         $uuid = intval($_POST['uuid'] ?? 0); 
-        $adminUsername = trim($_POST['edit_admin_user'] ?? '');
-        $adminPassword = trim($_POST['edit_admin_password'] ?? '');
 
-        if ($adminUsername !== 'admin') {
-            $statusMsg = "Access Denied: Only the account with username 'admin' can authorize modification updates.";
+        if($unameuser == "" || $upassname == "") {
+            $statusMsg = "User name and password fields cannot be left empty.";
             $msgClass = "border-red-500 bg-red-50 text-red-700";
         } else {
-            $adminUserEsc = $dbcon->real_escape_string($adminUsername);
-            $adminPassEsc = $dbcon->real_escape_string($adminPassword);
-            
-            // Validate admin identity credentials against database
-            $checkQry = "SELECT uid FROM users WHERE nameuser = '".$adminUserEsc."' AND passname = '".$adminPassEsc."' LIMIT 1";
-            $checkRes = $dbcon->query($checkQry);
-            
-            if($checkRes && $checkRes->num_rows > 0) {
-                $unameuserEsc = $dbcon->real_escape_string($unameuser);
-                $upassnameEsc = $dbcon->real_escape_string($upassname);
-                $strUpdate="UPDATE users SET nameuser='".$unameuserEsc."', passname='".$upassnameEsc."', role=".$urole." WHERE uid=".$uuid;              
-                if($dbcon->query($strUpdate)){
-                    echo "<script>window.location.replace(window.location.href);</script>";
-                    exit();
-                } else {
-                    $statusMsg = "Error updating record: " . $dbcon->error;
-                    $msgClass = "border-red-500 bg-red-50 text-red-700";
-                }       
+            $unameuserEsc = $dbcon->real_escape_string($unameuser);
+            $upassnameEsc = $dbcon->real_escape_string($upassname);
+            $strUpdate="UPDATE users SET nameuser='".$unameuserEsc."', passname='".$upassnameEsc."', role=".$urole." WHERE uid=".$uuid;              
+            if($dbcon->query($strUpdate)){
+                echo "<script>window.location.replace(window.location.href);</script>";
+                exit();
             } else {
-                $statusMsg = "Authorization Refused: Invalid administrator credentials supplied.";
+                $statusMsg = "Error updating record: " . $dbcon->error;
                 $msgClass = "border-red-500 bg-red-50 text-red-700";
-            }
+            }       
         }
     }
 
-    // Handle Admin Verified Secure Delete Form Submission
+    // 🔓 Bypassed/Simplified Removal Logic For Easy Development Changes
     if(isset($_POST['btnDelete'])){
         $duid = intval($_POST['duid'] ?? 0);
-        $adminUsername = trim($_POST['admin_user'] ?? '');
-        $adminPassword = trim($_POST['admin_password'] ?? '');
 
-        if ($adminUsername !== 'admin') {
-            $statusMsg = "Access Denied: Only the account with username 'admin' can authorize removals.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
-        } else {
-            $adminUserEsc = $dbcon->real_escape_string($adminUsername);
-            $adminPassEsc = $dbcon->real_escape_string($adminPassword);
-            
-            // Check credentials against the database table
-            $checkQry = "SELECT uid FROM users WHERE nameuser = '".$adminUserEsc."' AND passname = '".$adminPassEsc."' LIMIT 1";
-            $checkRes = $dbcon->query($checkQry);
-            
-            if($checkRes && $checkRes->num_rows > 0) {
-                if($duid > 0) {
-                    $strDelete = "DELETE FROM users WHERE uid = " . $duid;
-                    if($dbcon->query($strDelete)){
-                        echo "<script>window.location.replace(window.location.href);</script>";
-                        exit();
-                    } else {
-                        $statusMsg = "Error executing removal sequence: " . $dbcon->error;
-                        $msgClass = "border-red-500 bg-red-50 text-red-700";
-                    }
-                } else {
-                    $statusMsg = "Invalid user identification sequence.";
-                    $msgClass = "border-red-500 bg-red-50 text-red-700";
-                }
+        if($duid > 0) {
+            $strDelete = "DELETE FROM users WHERE uid = " . $duid;
+            if($dbcon->query($strDelete)){
+                echo "<script>window.location.replace(window.location.href);</script>";
+                exit();
             } else {
-                $statusMsg = "Authorization Refused: Invalid administrator credentials supplied.";
+                $statusMsg = "Error executing removal sequence: " . $dbcon->error;
                 $msgClass = "border-red-500 bg-red-50 text-red-700";
             }
+        } else {
+            $statusMsg = "Invalid user identification sequence.";
+            $msgClass = "border-red-500 bg-red-50 text-red-700";
         }
     }
 
@@ -342,25 +309,10 @@
                                 ?>
                             </select>
                         </div>
-
-                        <div class="border border-green-200 bg-green-50 p-4 rounded-lg mt-4 text-xs">
-                            <p class="text-green-800 font-semibold mb-2"><i class="icon-warning-sign"></i> Admin Authorization Required to Save Changes</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Username</label>
-                                    <input type="text" name="edit_admin_user" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 text-xs" placeholder="type 'admin'" required>
-                                </div>
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Password</label>
-                                    <input type="password" name="edit_admin_password" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-green-500 text-xs" placeholder="Admin Account Password" required>
-                                </div>
-                            </div>
-                        </div>
-
                     </div>
                     <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
                         <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" onclick="closeModal('editUserModal')">Close</button>
-                        <button type="submit" name="btnUpdate" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Verify &amp; Update</button>
+                        <button type="submit" name="btnUpdate" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Confirm Update Account</button>
                     </div>
                 </form>
             </div>
@@ -377,25 +329,11 @@
                     </div>
                     <div class="modal-body p-6 text-left text-sm">
                         <input type="hidden" name="duid" id="delete_uid" value="">
-                        <p class="text-gray-700 mb-4 text-base">Are you sure you want to delete user account <span id="delete_target_name" class="font-bold text-red-600"></span>? This action cannot be undone.</p>
-                        
-                        <div class="border border-red-200 bg-red-50 p-4 rounded-lg mb-4">
-                            <p class="text-red-800 font-semibold mb-2"><i class="icon-warning-sign"></i> Administrative Authorization Required to Delete</p>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Username</label>
-                                    <input type="text" name="admin_user" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500 text-xs" placeholder="type 'admin'" required>
-                                </div>
-                                <div>
-                                    <label class="block text-gray-700 font-medium mb-1 text-xs">Admin Password</label>
-                                    <input type="password" name="admin_password" class="w-full px-3 py-1.5 border border-gray-300 rounded text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500 text-xs" placeholder="Admin Account Password" required>
-                                </div>
-                            </div>
-                        </div>
+                        <p class="text-gray-700 text-base">Are you sure you want to delete user account <span id="delete_target_name" class="font-bold text-red-600"></span>? This action cannot be undone.</p>
                     </div>
                     <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
                         <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" onclick="closeModal('deleteUserModal')">Cancel</button>
-                        <button type="submit" name="btnDelete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Verify &amp; Delete Account</button>
+                        <button type="submit" name="btnDelete" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200">Confirm Delete Account</button>
                     </div>
                 </div>
             </form>

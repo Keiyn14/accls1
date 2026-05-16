@@ -61,6 +61,8 @@ function navActive($page, $currentLink) {
 		<ul class="<?php echo $openManageLearners;?> bg-green-800 rounded-lg ml-2 mt-1" id="form-learners">
 			<?php $pagename=encCode("collegestudents");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('collegestudents',$currentLink);?>"><i class="icon-angle-right mr-2"></i> College Department</a></li>
+			<?php $pagename=encCode("subjectscatalog");?>
+			<li><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('subjectscatalog',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Subjects Catalog</a></li>
 		</ul>
 	</li>
 
