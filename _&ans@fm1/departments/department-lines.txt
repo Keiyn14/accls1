@@ -1,0 +1,80 @@
+151:                                                                    <tr class="hover:bg-gray-50 transition duration-150">
+152:                                                                           <td class="px-4 py-3 text-gray-700"><?php echo $counter;?></td>
+153:                                                                           <td class="px-4 py-3 text-gray-700"><?php echo $department;?></td>
+154:                                                                           <td class="px-4 py-3">
+155:                                                                           <button class="w-full px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200"  data-toggle="modal"
+156:                                                                           data-target="#update<?php echo $did;?>" title="Edit Department">
+157:                                                                           <i class="icon-edit"></i> Edit
+158:                                                                           </button>
+159:                                                                           </td>
+160:                                                                           <!-- school year -->
+161: 
+162:                                                                           <div id="update<?php echo $did;?>" class="modal modal-overlay fade" tabindex="-1" role="dialog"  aria-hidden="true">
+163:                                                                           <form method="post" role="form">
+164:                                                                           <div class="modal-dialog modal-dialog-centered">
+165:                                                                           <div class="modal-content rounded-lg shadow-2xl">
+166:                                                                           <div class="bg-gradient-to-r from-green-700 to-green-600 px-6 py-4 flex justify-between items-center">
+167:                                                                             <h4 class="text-lg font-bold text-white"><i class="fa fas fa-list"></i> Department</h4>
+168:                                                                             <button type="button" class="text-white hover:text-gray-200 text-2xl" data-dismiss="modal" aria-label="Close">
+169:                                                                           <span aria-hidden="true">&times;</span>
+170:                                                                             </button>
+171:                                                                           </div>
+172:                                                                           <div class="modal-body p-6">
+173:                                                                           <?php
+174:                                                                           $qry="SELECT did, department FROM departments 
+175:                                                                           WHERE did=".$did."";
+176:                                                                           $sRes=$dbcon->query($qry);
+177:                                                                           $sData=$sRes->fetch_assoc();
+178:                                                                           $udid=$sData['did'];
+179:                                                                           $udepartment=$sData['department'];
+180:                                                                           ?>
+181:                                                                           <div class="mb-4">
+182:                                                                           <label class="block text-gray-700 font-semibold mb-2">Department Name</label>
+183:                                                                           <input type="hidden" name="udid" value="<?php echo $udid;?>">
+184:                                                                           <input type="textbox" name="udep" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" value="<?php echo $udepartment;?>" placeholder="Department name" required>
+185:                                                                           </div>
+186:                                                                           </div>
+187:                                                                           <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
+188:                                                                             <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" data-dismiss="modal">Close</button>
+189:                                                                             <button type="submit" name="btnUpdate" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200"><i class="icon-save"></i> Update</button>
+190:                                                                           </div>
+191:                                                                           </div>
+192:                                                                           </div>
+193:                                                                           </form>
+194:                                                                           </div>
+195:                                                                           <!--  --->
+196: 
+197: 
+198:                                                                    </tr>
+199:                                                            <?php
+200:                                                            $counter++;
+201:                                                    }
+202: 
+203:                                                    ?>
+204: 
+205:                                                    </tbody>
+206:                                            </table>                            
+207:                     </div>
+208:                            </div>
+209:                    </div>
+210:            </div>
+211:    </div>
+212: 
+213: 
+214:    <div class="modal modal-overlay fade" id="formModal" tabindex="-1" role="dialog" aria-labelledby="myModalLabel" aria-hidden="true">
+215:            <form role="form" method="post">
+216:                    <div class="modal-dialog modal-dialog-centered">
+217:                            <div class="modal-content rounded-lg shadow-2xl">
+218:                                    <div class="bg-gradient-to-r from-green-700 to-green-600 px-6 py-4 flex justify-between items-center">
+219:                                            <button type="button" class="text-white hover:text-gray-200 text-2xl" data-dismiss="modal" aria-label="Close">&times;</button>
+220:                                            <h4 class="text-lg font-bold text-white" id="H2">Add New Department</h4>
+221:                                    </div>
+222:                                    <div class="modal-body p-6">
+223: 
+224:                                    <div class="mb-4">
+225:                                            <label class="block text-gray-700 font-semibold mb-2">Department Name</label>
+226:                                            <input class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" name="txtdep" type="text" placeholder="Department name"/>
+227:                                    </div>
+228:                                    <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
+229:                                            <button type="reset" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" data-dismiss="modal">Close</button>
+230:                                            <button type="submit" name="btnAdd" class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200"><i class="icon-save"></i> Save</button>
