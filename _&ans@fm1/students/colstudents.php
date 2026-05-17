@@ -1192,12 +1192,6 @@ function printSubjectSummary() {
     var program = document.getElementById('sub_program').innerText;
     var level = document.getElementById('sub_glevel').innerText;
     var tableHTML = document.getElementById('subjects_table_body').outerHTML;
-    
-    var tuitionText = document.getElementById('fee_tuition').innerText;
-    var miscText = document.getElementById('fee_misc').innerText;
-    var labText = document.getElementById('fee_lab').innerText;
-    var totalText = document.getElementById('fee_total').innerText;
-    var majorCountText = document.getElementById('major_count').innerText;
 
     var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
     var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
@@ -1219,12 +1213,12 @@ function printSubjectSummary() {
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
             th { font-weight: bold; background-color: #f3f4f6; }
-            td:last-child, th:last-child { display: none !important; }
-            td:nth-child(4) { text-align: right; }
-            .summary-card { margin-top: 20px; border: 1px dashed #000; padding: 12px; font-size: 13px; width: 320px; margin-left: auto; }
-            .summary-line { display: flex; justify-content: space-between; margin-bottom: 4px; }
-            .summary-total { border-top: 1px solid #000; pt: 4px; font-weight: bold; margin-top: 6px; font-size: 14px; }
-            .footer { margin-top: 40px; display: flex; justify-content: flex-end; font-size: 13px; }
+            
+            /* 🚀 FORCE HIDE BOTH THE 4TH (PRICE) AND 5TH (ACTIONS) CELLS IN THE EXTRACTED ROW MARKUP */
+            th:nth-child(4), td:nth-child(4) { display: none !important; }
+            th:nth-child(5), td:nth-child(5) { display: none !important; }
+            
+            .footer { margin-top: 50px; display: flex; justify-content: flex-end; font-size: 13px; }
             .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; width: 180px; display: inline-block; padding-bottom: 2px; }
         </style>
     </head>
@@ -1245,21 +1239,13 @@ function printSubjectSummary() {
         <table>
             <thead>
                 <tr>
-                    <th style="width: 20%;">Subject Code</th>
-                    <th style="width: 50%;">Subject Title / Description</th>
-                    <th style="width: 10%; text-align: center;">Units</th>
-                    <th style="width: 20%; text-align: right;">Price</th>
+                    <th style="width: 25%;">Subject Code</th>
+                    <th style="width: 60%;">Subject Title / Description</th>
+                    <th style="width: 15%; text-align: center;">Units</th>
                 </tr>
             </thead>
             <tbody>${tableHTML}</tbody>
         </table>
-        
-        <div class="summary-card">
-            <div class="summary-line"><span>Tuition Fee:</span><span>${tuitionText}</span></div>
-            <div class="summary-line"><span>Miscellaneous Fees:</span><span>${miscText}</span></div>
-            <div class="summary-line"><span>Laboratory Fees (${majorCountText} Majors):</span><span>${labText}</span></div>
-            <div class="summary-line summary-total"><span>Total Term Assessment:</span><span>${totalText}</span></div>
-        </div>
 
         <div class="footer"><div><p>Issued by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
         <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
