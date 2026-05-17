@@ -193,6 +193,8 @@
         $cid = intval($_POST['cid']);
         $gid = intval($_POST['gid']);
         $did = intval($_POST['did'] ?? 0);
+        $syid = isset($_POST['syid']) ? intval($_POST['syid']) : $csyid;
+        $sid = isset($_POST['sid']) ? intval($_POST['sid']) : $cssid;
         $guardian = $dbcon->real_escape_string($_POST['guardian']);
         $mobile = $dbcon->real_escape_string($_POST['mobile']);
         $address = $dbcon->real_escape_string($_POST['address']);
@@ -203,8 +205,9 @@
             move_uploaded_file($_FILES['pic']['tmp_name'], $uploadDir . $picName);
         }
 
+        // 🚀 Updated Insert Query
         $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
-                      VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', '$email', '$smobile', $cid, $gid, $did, $csyid, $cssid, '$guardian', '$mobile', '$address', '$picName')";
+                      VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', '$email', '$smobile', $cid, $gid, $did, $syid, $sid, '$guardian', '$mobile', '$address', '$picName')";
         
         if($dbcon->query($strInsert)){
             echo "<script>window.location.replace(window.location.href);</script>";
@@ -228,12 +231,14 @@
         $cid = intval($_POST['ucid']);
         $gid = intval($_POST['ugid']);
         $did = intval($_POST['udid']);
+        $usyid = intval($_POST['usyid']);
+        $usid = intval($_POST['usid']);
         $guardian = $dbcon->real_escape_string($_POST['uguardian']);
         $mobile = $dbcon->real_escape_string($_POST['umobile']);
         $address = $dbcon->real_escape_string($_POST['uaddress']);
 
         $strUpdate = "UPDATE students SET studentid='$studentid', fname='$fname', mname='$mname', lname='$lname', gender='$gender', email='$email', smobile='$smobile', 
-                      cid=$cid, gid=$gid, did=$did, guardian='$guardian', mobile='$mobile', address='$address' WHERE csid=$csid";
+                      cid=$cid, gid=$gid, did=$did, syid=$usyid, sid=$usid, guardian='$guardian', mobile='$mobile', address='$address' WHERE csid=$csid";
         
         if($dbcon->query($strUpdate)){
             echo "<script>window.location.replace(window.location.href);</script>";
@@ -244,91 +249,95 @@
         }
     }
 
-    // Import Bulk Learners via CSV
-    if(isset($_POST['btnImportCSV'])){
-        if(isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] == 0){
-            $tmpName = $_FILES['csv_file']['tmp_name'];
-            $targetPath = $uploadDir . time() . '_temp_import.csv';
+if(isset($_POST['btnImportCSV'])){
+    if(isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] == 0){
+        $filename = $_FILES['csv_file']['tmp_name'];
+        
+        if (($handle = fopen($filename, "r")) !== FALSE) {
+            fgetcsv($handle, 1000, ","); // Skip header
             
-            if(move_uploaded_file($tmpName, $targetPath)) {
-                if(($handle = fopen($targetPath, "r")) !== FALSE) {
-                    fgetcsv($handle); 
-                    
-                    $successCount = 0;
-                    $skipCount = 0;
-                    $errorLogs = []; 
+            $insertedCount = 0;
+            $updatedCount = 0;
+            $debugLogs = [];
+            $csvLineNum = 1;
+            
+            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                $csvLineNum++;
+                if (empty(array_filter($data))) continue;
+                
+                // Pad data array to guarantee 15 elements match your new CSV layout
+                $data = array_pad($data, 15, '');
+                
+                $studentid = trim($data[0]);
+                $fname     = trim($data[1]);
+                $mname     = trim($data[2]);
+                $lname     = trim($data[3]);
+                $gender    = trim($data[4]);
+                
+                // 5 IDs extracted cleanly directly from file inputs
+                $cid       = intval(trim($data[5])); 
+                $gid       = intval(trim($data[6])); 
+                $did       = intval(trim($data[7])); 
+                $syid      = intval(trim($data[8])); 
+                $sid       = intval(trim($data[9])); 
+                
+                $guardian  = trim($data[10]);
+                $mobile    = trim($data[11]);
+                $address   = trim($data[12]);
+                $email     = trim($data[13]);
+                $smobile   = trim($data[14]);
+                $picName   = ""; 
 
-                    while (($raw_data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-                        if(empty(trim(implode("", $raw_data)))) {
-                            continue; 
-                        }
+                if(empty($studentid) || empty($lname) || empty($fname)){
+                    continue;
+                }
 
-                        if(count($raw_data) == 1 && strpos($raw_data[0], ';') !== false){
-                            $raw_data = explode(';', $raw_data[0]);
-                        }
+                $db_studentid = $dbcon->real_escape_string($studentid);
+                $db_fname     = $dbcon->real_escape_string($fname);
+                $db_mname     = $dbcon->real_escape_string($mname);
+                $db_lname     = $dbcon->real_escape_string($lname);
+                $db_gender    = $dbcon->real_escape_string($gender);
+                $db_guardian  = $dbcon->real_escape_string($guardian);
+                $db_mobile    = $dbcon->real_escape_string($mobile);
+                $db_address   = $dbcon->real_escape_string($address);
+                $db_email     = $dbcon->real_escape_string($email);
+                $db_smobile   = $dbcon->real_escape_string($smobile);
 
-                        $data = array_pad($raw_data, 13, '');
-
-                        $studentid = $dbcon->real_escape_string(trim($data[0]));
-                        $fname = $dbcon->real_escape_string(trim($data[1]));
-                        $mname = $dbcon->real_escape_string(trim($data[2]));
-                        $lname = $dbcon->real_escape_string(trim($data[3]));
-                        $gender = $dbcon->real_escape_string(trim($data[4]));
-                        $cid = intval(trim($data[5]));
-                        $gid = intval(trim($data[6]));
-                        $did = intval(trim($data[7]));
-                        $guardian = $dbcon->real_escape_string(trim($data[8]));
-                        $mobile = $dbcon->real_escape_string(trim($data[9]));
-                        $address = $dbcon->real_escape_string(trim($data[10]));
-                        $email = $dbcon->real_escape_string(trim($data[11]));
-                        $smobile = $dbcon->real_escape_string(trim($data[12]));
-                        $picName = ""; 
-
-                        if(!empty($studentid) && !empty($lname) && !empty($fname)){
-                            $checkQry = "SELECT csid FROM students WHERE studentid = '$studentid'";
-                            $checkRes = $dbcon->query($checkQry);
-                            
-                            if($checkRes === FALSE){
-                                $errorLogs[] = "Database Error ($studentid): " . $dbcon->error;
-                            } elseif($checkRes->num_rows > 0) {
-                                $skipCount++; 
-                            } else {
-                                $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
-                                              VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', '$email', '$smobile', $cid, $gid, $did, $csyid, $cssid, '$guardian', '$mobile', '$address', '$picName')";
-                                
-                                if($dbcon->query($strInsert)){
-                                    $successCount++;
-                                } else {
-                                    $errorLogs[] = "Insert Error ($studentid): " . $dbcon->error;
-                                }
-                            }
-                        } else {
-                            $errorLogs[] = "Invalid Row -> Seen ID:['$studentid'] First:['$fname'] Last:['$lname']. Raw Line: " . htmlspecialchars(implode(",", $raw_data));
-                        }
-                    }
-                    fclose($handle);
-                    unlink($targetPath);
-                    
-                    if(count($errorLogs) > 0){
-                        $statusMsg = "Import finished. $successCount inserted, $skipCount duplicates. <br><br><b>Issues Found:</b><br>" . implode("<br>", array_slice($errorLogs, 0, 5));
-                        $msgClass = "border-red-500 bg-red-50 text-red-700";
+                $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
+                              VALUES ('$db_studentid', '$db_fname', '$db_mname', '$db_lname', '$db_gender', '$db_email', '$db_smobile', $cid, $gid, $did, $syid, $sid, '$db_guardian', '$db_mobile', '$db_address', '$picName')
+                              ON DUPLICATE KEY UPDATE 
+                              fname    = '$db_fname', 
+                              mname    = '$db_mname', 
+                              lname    = '$db_lname', 
+                              gender   = '$db_gender', 
+                              email    = '$db_email', 
+                              smobile  = '$db_smobile', 
+                              cid      = $cid, 
+                              gid      = $gid, 
+                              did      = $did, 
+                              syid     = $syid, 
+                              sid      = $sid, 
+                              guardian = '$db_guardian', 
+                              mobile   = '$db_mobile', 
+                              address  = '$db_address'";
+                
+                if($dbcon->query($strInsert)){
+                    if($dbcon->affected_rows == 2) {
+                        $updatedCount++;
                     } else {
-                        $statusMsg = "Import Complete: $successCount inserted, $skipCount duplicates skipped.";
-                        $msgClass = "border-green-500 bg-green-50 text-green-700";
+                        $insertedCount++;
                     }
                 } else {
-                    $statusMsg = "Error: Could not read the CSV data.";
-                    $msgClass = "border-red-500 bg-red-50 text-red-700";
+                    $debugLogs[] = "Line {$csvLineNum} Error: " . $dbcon->error;
                 }
-            } else {
-                $statusMsg = "System Error: Could not transfer file.";
-                $msgClass = "border-red-500 bg-red-50 text-red-700";
             }
-        } else {
-            $statusMsg = "Upload Error: Please upload a valid CSV.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
+            fclose($handle);
+            
+            $statusMsg = "Import Complete: Added {$insertedCount} records, updated {$updatedCount} records.";
+            $msgClass = "border-green-500 bg-green-50 text-green-700 font-medium";
         }
     }
+}
 
     // --- SUBJECT MANAGEMENT ACTIONS ---
     if(isset($_POST['action_type']) && $_POST['action_type'] == "add_subject"){
@@ -446,6 +455,8 @@
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Student Name</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Program</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Level</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">School Year</th>
                             <th class="px-4 py-3 text-center font-semibold text-gray-700 print-hide" style="min-width: 200px;">Action</th>
                         </tr>
                     </thead>
@@ -454,7 +465,9 @@
                     $strQry="SELECT cs.*, 
                                 (select program from offerings where cid=cs.cid) as program,
                                 (select glevel from gradelevel where gid=cs.gid) as glevel,
-                                (select department from departments where did=cs.did) as department
+                                (select department from departments where did=cs.did) as department,
+                                (select remark from status where sid=cs.sid) as student_status,
+                                (select syname from sy where syid=cs.syid) as syname
                                 FROM students cs ORDER BY cs.csid DESC";
                     $qryRes=$dbcon->query($strQry);
                     while($row=$qryRes->fetch_assoc()){
@@ -468,6 +481,8 @@
                             <td class="px-4 py-3 text-gray-800 font-semibold"><?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');?></td>
                             <td class="px-4 py-3 text-green-700 font-semibold"><?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
                             <td class="px-4 py-3 text-gray-600"><?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
+                            <td class="px-4 py-3 text-gray-600"><?php echo htmlspecialchars($row['student_status'] ?? 'N/A', ENT_QUOTES, 'UTF-8');?></td>
+                            <td class="px-4 py-3 text-gray-600"><?php echo htmlspecialchars($row['syname'] ?? 'N/A', ENT_QUOTES, 'UTF-8');?></td>
                             <td class="px-4 py-3 print-hide">
                                 <div class="flex gap-2 w-full">
                                     <button type="button" class="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2"
@@ -483,6 +498,8 @@
                                             data-cid="<?php echo htmlspecialchars($row['cid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-gid="<?php echo htmlspecialchars($row['gid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-did="<?php echo htmlspecialchars($row['did'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-syid="<?php echo htmlspecialchars($row['syid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-sid="<?php echo htmlspecialchars($row['sid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-guardian="<?php echo htmlspecialchars($row['guardian'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-mobile="<?php echo htmlspecialchars($row['mobile'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-address="<?php echo htmlspecialchars($row['address'] ?? '', ENT_QUOTES, 'UTF-8'); ?>">
@@ -552,12 +569,37 @@
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">First Name *</label><input type="text" name="fname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Middle Name</label><input type="text" name="mname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Last Name *</label><input type="text" name="lname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
-                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Upload Picture</label><input type="file" name="pic" accept="image/*" class="w-full px-3 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white"></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Program *</label><select name="cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $oRes=$dbcon->query("SELECT cid, program FROM offerings"); while($o=$oRes->fetch_assoc()) echo "<option value='".$o['cid']."'>".htmlspecialchars($o['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Year Level *</label><select name="gid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $gRes=$dbcon->query("SELECT gid, glevel FROM gradelevel"); while($g=$gRes->fetch_assoc()) echo "<option value='".$g['gid']."'>".htmlspecialchars($g['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Department *</label><select name="did" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $dRes=$dbcon->query("SELECT did, department FROM departments"); while($d=$dRes->fetch_assoc()) echo "<option value='".$d['did']."'>".htmlspecialchars($d['department'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">School Year *</label>
+                            <select name="syid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
+                                <?php 
+                                $syRes=$dbcon->query("SELECT syid, syname, status FROM sy ORDER BY syid DESC");
+                                while($sy=$syRes->fetch_assoc()) {
+                                    $selected = ($sy['syid'] == $csyid) ? 'selected' : ''; // Defaults to Active SY
+                                    echo "<option value='".$sy['syid']."' $selected>".htmlspecialchars($sy['syname'], ENT_QUOTES, 'UTF-8')."</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Status *</label>
+                            <select name="sid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
+                                <?php 
+                                $stRes=$dbcon->query("SELECT sid, remark FROM status");
+                                while($st=$stRes->fetch_assoc()) {
+                                    $selected = ($st['sid'] == 1) ? 'selected' : ''; // Defaults to current Status
+                                    echo "<option value='".$st['sid']."' $selected>".htmlspecialchars($st['remark'], ENT_QUOTES, 'UTF-8')."</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
                     </div>
                     
                     <h5 class="text-sm font-bold text-gray-800 mb-2 border-b pb-1">Student Contact Info</h5>
@@ -603,6 +645,30 @@
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Program</label><select name="ucid" id="edit_cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $oRes=$dbcon->query("SELECT cid, program FROM offerings"); while($o=$oRes->fetch_assoc()) echo "<option value='".$o['cid']."'>".htmlspecialchars($o['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Year Level</label><select name="ugid" id="edit_gid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $gRes=$dbcon->query("SELECT gid, glevel FROM gradelevel"); while($g=$gRes->fetch_assoc()) echo "<option value='".$g['gid']."'>".htmlspecialchars($g['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Department</label><select name="udid" id="edit_did" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $dRes=$dbcon->query("SELECT did, department FROM departments"); while($d=$dRes->fetch_assoc()) echo "<option value='".$d['did']."'>".htmlspecialchars($d['department'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">School Year *</label>
+                            <select name="usyid" id="edit_syid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
+                                <?php 
+                                $syRes=$dbcon->query("SELECT syid, syname FROM sy ORDER BY syid DESC");
+                                while($sy=$syRes->fetch_assoc()) {
+                                    echo "<option value='".$sy['syid']."'>".htmlspecialchars($sy['syname'], ENT_QUOTES, 'UTF-8')."</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Status *</label>
+                            <select name="usid" id="edit_sid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
+                                <?php 
+                                $stRes=$dbcon->query("SELECT sid, remark FROM status");
+                                while($st=$stRes->fetch_assoc()) {
+                                    echo "<option value='".$st['sid']."'>".htmlspecialchars($st['remark'], ENT_QUOTES, 'UTF-8')."</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
                     </div>
                     
                     <h5 class="text-sm font-bold text-gray-800 mb-2 border-b pb-1">Student Contact Info</h5>
@@ -1005,6 +1071,8 @@ function triggerEditStudent(btn) {
     document.getElementById('edit_cid').value = btn.getAttribute('data-cid') || '';
     document.getElementById('edit_gid').value = btn.getAttribute('data-gid') || '';
     document.getElementById('edit_did').value = btn.getAttribute('data-did') || '';
+    document.getElementById('edit_syid').value = btn.getAttribute('data-syid') || '';
+    document.getElementById('edit_sid').value = btn.getAttribute('data-sid') || '';
     document.getElementById('edit_guardian').value = btn.getAttribute('data-guardian') || '';
     document.getElementById('edit_mobile').value = btn.getAttribute('data-mobile') || '';
     document.getElementById('edit_address').value = btn.getAttribute('data-address') || '';

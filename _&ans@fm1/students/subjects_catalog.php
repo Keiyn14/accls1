@@ -1,3 +1,60 @@
+<?php
+// 🚀 1. ABSOLUTE TOP OF FILE: Catch background AJAX posts before any styles or text render
+if (isset($_POST['action']) && $_POST['action'] === 'ajax_add_subject') {
+    // Clear out any buffered parent template outputs cleanly
+    if (ob_get_length()) ob_clean();
+    
+    $dept  = 1; // College context
+    $cid   = intval($_POST['cid'] ?? 0);
+    $code  = $dbcon->real_escape_string(strtoupper(trim($_POST['subject_code'] ?? '')));
+    $title = trim($_POST['subject_title'] ?? '');
+    $units = intval($_POST['units'] ?? 0);
+    $price = floatval($_POST['price'] ?? 0);
+    
+    $gid_sel = intval($_POST['gid'] ?? 5);
+    $sid_sel = intval($_POST['sid'] ?? 1);
+    
+    $yearText = match($gid_sel) { 6 => '2nd Year', 7 => '3rd Year', 9 => '4th Year', default => '1st Year' };
+    $semText  = match($sid_sel) { 2 => '2nd Sem', 3 => 'Summer', default => '1st Sem' };
+    
+    $fullTitle = $dbcon->real_escape_string($title . " (" . $yearText . ", " . $semText . ")");
+
+    if (empty($code) || empty($title) || $cid <= 0) {
+        echo "===JSON_DATA===" . json_encode(['success' => false, 'message' => 'Please fill in all required setup details.']) . "===JSON_DATA===";
+        exit();
+    }
+
+    $check = $dbcon->query("SELECT sub_id FROM subjects WHERE subject_code = '$code' AND cid = $cid");
+    if ($check && $check->num_rows > 0) {
+        echo "===JSON_DATA===" . json_encode(['success' => false, 'message' => "Subject code '$code' already exists under this program context."]) . "===JSON_DATA===";
+        exit();
+    }
+
+    $sql = "INSERT INTO subjects (did, cid, subject_code, subject_title, units, price) 
+            VALUES ($dept, $cid, '$code', '$fullTitle', $units, $price)";
+            
+    if ($dbcon->query($sql)) {
+        echo "===JSON_DATA===" . json_encode(['success' => true, 'message' => "Successfully added '$code' to catalog!"]) . "===JSON_DATA===";
+    } else {
+        echo "===JSON_DATA===" . json_encode(['success' => false, 'message' => 'Database Engine Error: ' . $dbcon->error]) . "===JSON_DATA===";
+    }
+    exit();
+}
+
+// Handle Delete Subject Row Action
+if(isset($_POST['btnDeleteSubject'])){
+    $sub_id = intval($_POST['sub_id']);
+    if($sub_id > 0){
+        $dbcon->query("DELETE FROM subjects WHERE sub_id = $sub_id");
+        echo "<script>window.location.replace(window.location.href);</script>";
+        exit();
+    }
+}
+
+$dept = 1; 
+$formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOTES, 'UTF-8');
+?>
+
 <style>
     /* Synchronized Global Modal Styles */
     .modal-overlay {
@@ -68,7 +125,7 @@
         font-weight: 500;
     }
 
-    /* --- 🚀 FIXED PAGINATION DESIGN ENGINE --- */
+    /* --- FIXED PAGINATION DESIGN ENGINE --- */
     .dataTables_wrapper .dataTables_paginate {
         float: right;
         margin-top: 1rem;
@@ -124,53 +181,7 @@
 </style>
 
 <br />
-<?php
-$dept = 1; // College context
-$statusMsg = "";
-$msgClass = "";
-$formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOTES, 'UTF-8');
-
-// Handle Add Subject Form
-if(isset($_POST['btnAddSubject'])){
-    $cid = intval($_POST['cid'] ?? 0);
-    $code = $dbcon->real_escape_string(trim($_POST['subject_code']));
-    $title = $dbcon->real_escape_string(trim($_POST['subject_title']));
-    $units = intval($_POST['units']);
-    $price = floatval($_POST['price']);
-
-    if(!empty($code) && !empty($title) && $cid > 0){
-        $sql = "INSERT INTO subjects (did, cid, subject_code, subject_title, units, price) VALUES ($dept, $cid, '$code', '$title', $units, $price)";
-        if($dbcon->query($sql)){
-            echo "<script>window.location.replace(window.location.href);</script>";
-            exit();
-        } else {
-            $statusMsg = "Error adding course subject: " . $dbcon->error;
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
-        }
-    } else {
-        $statusMsg = "Error: Please choose a valid academic program for this subject assignment.";
-        $msgClass = "border-orange-500 bg-orange-50 text-orange-700";
-    }
-}
-
-// Handle Delete Subject Row Action
-if(isset($_POST['btnDeleteSubject'])){
-    $sub_id = intval($_POST['sub_id']);
-    if($sub_id > 0){
-        $dbcon->query("DELETE FROM subjects WHERE sub_id = $sub_id");
-        echo "<script>window.location.replace(window.location.href);</script>";
-        exit();
-    }
-}
-?>
-
 <div class="p-6 space-y-6">
-    <?php if(!empty($statusMsg)) { ?>
-        <div class="border-l-4 p-4 rounded-r-lg shadow-sm <?php echo $msgClass; ?>">
-            <span class="font-bold">Notification:</span> <?php echo htmlspecialchars($statusMsg, ENT_QUOTES, 'UTF-8'); ?>
-        </div>
-    <?php } ?>
-
     <div class="flex flex-wrap lg:flex-nowrap gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-hide">
         <div class="flex flex-wrap gap-3">
             <button onclick="openModal('addSubjectModal')" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
@@ -190,7 +201,7 @@ if(isset($_POST['btnDeleteSubject'])){
                         <tr class="bg-gray-100 border-b-2 border-gray-300">
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Program Area</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Subject Code</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Subject Title</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Subject Title / Allocation Description</th>
                             <th class="px-4 py-3 text-center font-semibold text-gray-700">Units</th>
                             <th class="px-4 py-3 text-right font-semibold text-gray-700">Price Fee (₱)</th>
                             <th class="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
@@ -231,46 +242,72 @@ if(isset($_POST['btnDeleteSubject'])){
 <div class="modal-overlay" id="addSubjectModal" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content rounded-lg shadow-2xl bg-white">
-            <form method="post" action="<?php echo $formActionUrl; ?>">
+            <form id="ajaxAddSubjectForm">
                 <div class="bg-gradient-to-r from-green-700 to-green-600 px-6 py-4 flex justify-between items-center">
                     <h4 class="text-lg font-bold text-white"><i class="icon-book"></i> Add Subject to Catalog</h4>
                     <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('addSubjectModal')">&times;</button>
                 </div>
+                
+                <div id="modalAlertBox" class="hidden mx-6 mt-4 p-3 rounded border text-sm font-medium"></div>
+
                 <div class="modal-body p-6 space-y-4 text-left">
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-1 text-sm">Target Academic Program *</label>
-                        <select name="cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white" required>
-                            <option value="">-- Select Associated Program --</option>
-                            <?php
-                            $opRes = $dbcon->query("SELECT cid, program FROM offerings WHERE did=$dept ORDER BY program ASC");
-                            while($op = $opRes->fetch_assoc()){
-                                echo "<option value='".$op['cid']."'>".htmlspecialchars($op['program'])."</option>";
-                            }
-                            ?>
-                        </select>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Academic Program *</label>
+                            <select name="cid" id="modal_cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white" required>
+                                <option value="">-- Select Program --</option>
+                                <?php
+                                $opRes = $dbcon->query("SELECT cid, program FROM offerings WHERE did=$dept ORDER BY program ASC");
+                                while($op = $opRes->fetch_assoc()){
+                                    echo "<option value='".$op['cid']."'>".htmlspecialchars($op['program'])."</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Year Level Dropdown</label>
+                            <select name="gid" id="modal_gid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white" required>
+                                <option value="5">1st Year</option>
+                                <option value="6">2nd Year</option>
+                                <option value="7">3rd Year</option>
+                                <option value="9">4th Year</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Semester Dropdown</label>
+                            <select name="sid" id="modal_sid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 bg-white" required>
+                                <option value="1">1st Semester</option>
+                                <option value="2">2nd Semester</option>
+                                <option value="3">Summer Term</option>
+                            </select>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-1 text-sm">Subject Code *</label>
-                        <input type="text" name="subject_code" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" placeholder="e.g., COMP101" required>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Subject Code *</label>
+                            <input type="text" name="subject_code" id="modal_subject_code" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 uppercase" placeholder="e.g., COMP101" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Subject Title *</label>
+                            <input type="text" name="subject_title" id="modal_subject_title" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" placeholder="e.g., Data Structures and Algorithms" required>
+                        </div>
                     </div>
-                    <div>
-                        <label class="block text-gray-700 font-semibold mb-1 text-sm">Subject Title *</label>
-                        <input type="text" name="subject_title" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" placeholder="e.g., Data Structures and Algorithms" required>
-                    </div>
+
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-gray-700 font-semibold mb-1 text-sm">Credit Units *</label>
-                            <input type="number" name="units" min="1" max="6" value="3" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
+                            <input type="number" name="units" id="modal_units" min="1" max="6" value="3" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
                         </div>
                         <div>
                             <label class="block text-gray-700 font-semibold mb-1 text-sm">Subject Cost Price (₱) *</label>
-                            <input type="number" step="0.01" name="price" value="1350.00" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 font-bold" required>
+                            <input type="number" step="0.01" name="price" id="modal_price" value="1350.00" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500 font-bold" required>
                         </div>
                     </div>
                 </div>
                 <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
-                    <button type="button" class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 font-semibold" onclick="closeModal('addSubjectModal')">Cancel</button>
-                    <button type="submit" name="btnAddSubject" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold shadow-md">Save to Catalog</button>
+                    <button type="button" class="px-4 py-2 bg-gray-300 text-gray-800 rounded hover:bg-gray-400 font-semibold" onclick="closeModal('addSubjectModal')">Finish &amp; Close</button>
+                    <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 font-semibold shadow-md">Save Subject</button>
                 </div>
             </form>
         </div>
@@ -285,13 +322,58 @@ function openModal(id) {
 function closeModal(id) { 
     var m = document.getElementById(id);
     if(m) m.classList.remove('active'); 
+    window.location.replace(window.location.href.split('?')[0] + '?' + '<?php echo $_SERVER['QUERY_STRING'] ?? ''; ?>');
 }
 window.onclick = function(event) {
     if (event.target.classList.contains('modal-overlay')) {
-        event.target.classList.remove('active');
+        closeModal(event.target.id);
     }
 }
+
 $(document).ready(function() { 
+    $('#ajaxAddSubjectForm').on('submit', function(e) {
+        e.preventDefault();
+        var alertBox = $('#modalAlertBox');
+        alertBox.addClass('hidden').removeClass('bg-green-50 border-green-500 text-green-700 bg-red-50 border-red-500 text-red-700');
+
+        $.ajax({
+            type: 'POST',
+            url: window.location.href,
+            data: $(this).serialize() + '&action=ajax_add_subject',
+            dataType: 'text', // 🚀 Changed to text to capture clean token outputs safely
+            success: function(responseText) {
+                // Extract clean data array block from template layers
+                var matches = responseText.match(/===JSON_DATA===(.*?)===JSON_DATA===/);
+                
+                if (matches && matches[1]) {
+                    try {
+                        var response = JSON.parse(matches[1]);
+                        if(response.success) {
+                            alertBox.html('<strong>Success:</strong> ' + response.message)
+                                     .addClass('bg-green-50 border-green-500 text-green-700').removeClass('hidden');
+                            
+                            $('#modal_subject_code').val('').focus();
+                            $('#modal_subject_title').val('');
+                        } else {
+                            alertBox.html('<strong>Error:</strong> ' + response.message)
+                                     .addClass('bg-red-50 border-red-500 text-red-700').removeClass('hidden');
+                        }
+                    } catch(e) {
+                        alertBox.html('<strong>System Error:</strong> Faulty response parser output.')
+                                 .addClass('bg-red-50 border-red-500 text-red-700').removeClass('hidden');
+                    }
+                } else {
+                    alertBox.html('<strong>System Error:</strong> Route engine tracking failed.')
+                             .addClass('bg-red-50 border-red-500 text-red-700').removeClass('hidden');
+                }
+            },
+            error: function() {
+                alertBox.html('<strong>System Error:</strong> Request transmission failed.')
+                         .addClass('bg-red-50 border-red-500 text-red-700').removeClass('hidden');
+            }
+        });
+    });
+
     $('#dataTables-subjects').DataTable({ 
         "responsive": true, 
         "pageLength": 10, 

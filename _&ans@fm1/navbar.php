@@ -8,8 +8,7 @@ if ($currentLink === '') {
     $currentLink = strtolower($currentLinkRaw);
 }
 $openLedgerSettings = preg_match('/schoolyear|semester|departments|offerings|gradelevel|status/', $currentLink) ? 'block' : 'hidden';
-$openManageLearners = preg_match('/collegestudents|shsstudents/', $currentLink) ? 'block' : 'hidden';
-$openLedgerEntry = preg_match('/collegeledger|shsledger|ledgermonitoring/', $currentLink) ? 'block' : 'hidden';
+$openManageLearners = preg_match('/collegestudents|shsstudents|subjectscatalog/', $currentLink) ? 'block' : 'hidden';$openLedgerEntry = preg_match('/collegeledger|shsledger|ledgermonitoring/', $currentLink) ? 'block' : 'hidden';
 $openUsers = preg_match('/userroles|ledgerusers/', $currentLink) ? 'block' : 'hidden';
 $ledgerSettingsIcon = $openLedgerSettings === 'block' ? 'rotate-90' : '';
 $manageLearnersIcon = $openManageLearners === 'block' ? 'rotate-90' : '';
