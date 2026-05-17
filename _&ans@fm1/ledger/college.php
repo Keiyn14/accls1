@@ -1,3 +1,69 @@
+<?php 
+// =========================================================================
+// 🚀 AJAX ENGINE HANDLING BLOCKS (IMMUNIZED AGAINST LAYOUT WARNINGS)
+// =========================================================================
+if(isset($_POST['action_type'])){
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+
+    // Securely pull transactional logs history with School Year and Semester groupings
+    if($_POST['action_type'] == "fetch_payment_history"){
+        $csid = intval($_POST['csid']);
+        $output = [];
+
+        // SQL Query utilizing structural COALESCE matching rules to handle historical fallbacks
+        $strHistory = 'SELECT l.or_no, l.payment_date, l.amount, l.remarks, 
+                       COALESCE((SELECT syname FROM sy WHERE syid = l.syid), "Legacy Term") as syname,
+                       COALESCE((SELECT semester FROM sem WHERE sid = l.sid), "Legacy Sem") as semester
+                       FROM ledger l
+                       WHERE l.csid = ' . $csid . ' 
+                       ORDER BY l.id DESC';
+
+        $res = $dbcon->query($strHistory);
+        if($res){
+            while($r = $res->fetch_assoc()){
+                $output[] = [
+                    'or_no'        => $r['or_no'],
+                    'payment_date' => $r['payment_date'],
+                    'amount'       => floatval($r['amount']),
+                    'remarks'      => $r['remarks'] ?? 'N/A',
+                    'syname'       => $r['syname'],
+                    'semester'     => $r['semester']
+                ];
+            }
+        }
+        echo json_encode($output);
+        exit();
+    }
+
+    // Secure AJAX handler to post a payment row entry stamped with custom manual selections
+    if($_POST['action_type'] == "add_payment_entry"){
+        $csid = intval($_POST['payment_csid']);
+        $orNo = $dbcon->real_escape_string(trim($_POST['or_no']));
+        $payDate = $dbcon->real_escape_string($_POST['payment_date']);
+        $amount = floatval($_POST['payment_amount']);
+        $remarks = $dbcon->real_escape_string(trim($_POST['remarks'] ?? ''));
+        
+        $target_syid = intval($_POST['payment_syid']);
+        $target_sid = intval($_POST['payment_sid']);
+
+        if($csid > 0 && !empty($orNo) && !empty($payDate) && $amount > 0 && $target_syid > 0 && $target_sid > 0) {
+            $query = "INSERT INTO ledger (csid, or_no, payment_date, amount, remarks, syid, sid) 
+                      VALUES ($csid, '$orNo', '$payDate', $amount, '$remarks', $target_syid, $target_sid)";
+            if($dbcon->query($query)){
+                echo json_encode(["status" => "success"]);
+            } else {
+                echo json_encode(["status" => "error", "message" => $dbcon->error]);
+            }
+        } else {
+            echo json_encode(["status" => "error", "message" => "All mandatory payment fields must be filled with positive values."]);
+        }
+        exit();
+    }
+}
+?>
+
 <style>
     /* Synchronized Global Modal Styles */
     .modal-overlay {
@@ -16,12 +82,12 @@
         display: flex;
     }
     .modal-overlay .modal-dialog {
-        max-width: 800px;
-        width: min(95%, 800px);
+        max-width: 900px;
+        width: min(95%, 900px);
         margin: auto;
     }
     .modal-dialog-sm {
-        max-width: 500px !important;
+        max-width: 540px !important;
     }
     .modal-content {
         background: #ffffff;
@@ -48,10 +114,12 @@
         margin-bottom: 1.5rem;
         float: right;
         text-align: right;
+        font-size: 0.95rem;
     }
     .dataTables_wrapper .dataTables_length {
         margin-bottom: 1.5rem;
         float: left;
+        font-size: 0.95rem;
     }
     .dataTables_wrapper .dataTables_filter input,
     .dataTables_wrapper .dataTables_length select {
@@ -60,247 +128,175 @@
         padding: 0.4rem 0.75rem;
         outline: none;
     }
+    .dataTables_wrapper .dataTables_info {
+        float: left;
+        margin-top: 1.25rem;
+        color: #4b5563;
+        font-size: 0.95rem;
+        font-weight: 500;
+    }
+
+    /* --- FIXED PAGINATION DESIGN ENGINE --- */
+    .dataTables_wrapper .dataTables_paginate {
+        float: right;
+        margin-top: 1rem;
+    }
+    .dataTables_paginate ul.pagination {
+        display: inline-flex !important;
+        list-style: none !important;
+        padding-left: 0 !important;
+        margin: 0 !important;
+        border-radius: 0.5rem !important;
+        overflow: hidden;
+        border: 1px solid #d1d5db !important;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .dataTables_paginate ul.pagination li {
+        display: inline !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    .dataTables_paginate ul.pagination li a {
+        position: relative;
+        display: block;
+        padding: 0.5rem 0.875rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+        line-height: 1.25;
+        color: #374151 !important;
+        background-color: #ffffff;
+        border-right: 1px solid #d1d5db;
+        text-decoration: none !important;
+        transition: all 0.15s ease-in-out;
+        cursor: pointer;
+    }
+    .dataTables_paginate ul.pagination li:last-child a { border-right: none; }
+    .dataTables_paginate ul.pagination li a:hover { background-color: #f0fdf4 !important; color: #15803d !important; }
+    .dataTables_paginate ul.pagination li.active a { background-color: #16a34a !important; color: #ffffff !important; border-color: #16a34a !important; cursor: default; }
+    .dataTables_paginate ul.pagination li.disabled a { color: #9ca3af !important; background-color: #f9fafb !important; cursor: not-allowed; pointer-events: none; }
+    
+    @media print {
+        .print-hide, .dataTables_filter, .dataTables_info, .dataTables_paginate, .dataTables_length { display: none !important; }
+        #dataTables-example th:last-child, #dataTables-example td:last-child { display: none !important; }
+        table { width: 100% !important; border-collapse: collapse !important; }
+        td, th { border: 1px solid #000 !important; padding: 8px !important; font-size: 0.95rem !important; }
+    }
 </style>
 
 <br />
 <?php 
-    $dept = '1'; // College
+    $defaultPic = "../assets/logo.png";   
+    $dept = '1';
     
-    // get current active school year
-    $str = "SELECT syid, syname, status FROM sy WHERE status='Active'";
-    $res = $dbcon->query($str);
-    $data = $res->fetch_assoc();
+    // Get active school year
+    $str="Select syid, syname,status from sy where status='Active'";
+    $res=$dbcon->query($str);
+    $data=$res->fetch_assoc();
     $s = $data['syname'] ?? '';
     $csyid = $data['syid'] ?? 0;
     
-    // get current active semester
-    $strCS = "SELECT sid, semester, status FROM sem WHERE status='Active'";
-    $resCS = $dbcon->query($strCS);
-    $csData = $resCS->fetch_assoc();
+    // Get active semester
+    $strCS="SELECT sid, semester, status FROM sem where status='Active'";
+    $resCS=$dbcon->query($strCS);
+    $csData=$resCS->fetch_assoc();
     $cssid = $csData['sid'] ?? 0;
     $cssemester = $csData['semester'] ?? '';
-    
-    $today = date("Y-m-d"); //
-    $statusMsg = "";
-    $msgClass = "";
-    $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOTES, 'UTF-8');
-
-    // AJAX Action Catch Hooks
-    if(isset($_POST['action_type'])){
-        // Payment Logs
-        if($_POST['action_type'] == "fetch_payment_history"){
-            $output = [];
-            $clid = intval($_POST['clid']);
-            $res = $dbcon->query("SELECT or_number, paymentdate, amtpaid, balance FROM payment WHERE clid = $clid AND amtpaid > 0 ORDER BY pid DESC");
-            while($r = $res->fetch_assoc()) { $output[] = $r; }
-            echo json_encode($output);
-            exit();
-        }
-        
-        // Subject Catalog Load
-        if($_POST['action_type'] == "get_student_subjects"){
-            $output = [];
-            $csid = intval($_POST['csid']);
-            $res = $dbcon->query("SELECT s.sub_id, s.subject_code, s.subject_title, s.units, s.price 
-                                  FROM student_subjects ss 
-                                  INNER JOIN subjects s ON ss.sub_id = s.sub_id 
-                                  WHERE ss.csid=$csid AND ss.syid=$csyid AND ss.sid=$cssid");
-            while($r = $res->fetch_assoc()) { $output[] = $r; }
-            echo json_encode($output);
-            exit();
-        }
-
-        // Add Course Subject to Mapping List
-        if($_POST['action_type'] == "add_subject_to_student"){
-            $csid = intval($_POST['csid']);
-            $sub_id = intval($_POST['sub_id']);
-            
-            $chk = $dbcon->query("SELECT ss_id FROM student_subjects WHERE csid=$csid AND sub_id=$sub_id AND syid=$csyid AND sid=$cssid");
-            if($chk && $chk->num_rows == 0) {
-                $dbcon->query("INSERT INTO student_subjects (csid, sub_id, syid, sid) VALUES ($csid, $sub_id, $csyid, $cssid)");
-            }
-            echo json_encode(["status" => "success"]);
-            exit();
-        }
-
-        // Drop Course Subject from Mapping List
-        if($_POST['action_type'] == "drop_student_subject"){
-            $csid = intval($_POST['csid']);
-            $sub_id = intval($_POST['sub_id']);
-            $dbcon->query("DELETE FROM student_subjects WHERE csid=$csid AND sub_id=$sub_id AND syid=$csyid AND sid=$cssid");
-            echo json_encode(["status" => "success"]);
-            exit();
-        }
-    }
-
-    // =========================================================================
-    // 🎯 LIVE AUTOMATIC LEDGER FINANCIAL SYNCHRONIZER
-    // =========================================================================
-    $getTermStudents = $dbcon->query("SELECT csid FROM students WHERE syid=$csyid AND sid=$cssid AND did=$dept");
-    if($getTermStudents) {
-        while($stRow = $getTermStudents->fetch_assoc()) {
-            $student_csid = intval($stRow['csid']);
-            
-            // Sum costs from master table via relational inner query
-            $uRes = $dbcon->query("SELECT SUM(s.price) as total_tuition FROM student_subjects ss INNER JOIN subjects s ON ss.sub_id = s.sub_id WHERE ss.csid=$student_csid AND ss.syid=$csyid AND ss.sid=$cssid");
-            $uData = $uRes->fetch_assoc();
-            $calculatedAssessment = floatval($uData['total_tuition'] ?? 0.00);
-            
-            // Validate if ledger record entry row is present
-            $checkLedgerEx = $dbcon->query("SELECT clid, balance FROM ledger WHERE csid=$student_csid AND syid=$csyid AND sid=$cssid");
-            if($checkLedgerEx && $checkLedgerEx->num_rows == 0) {
-                // Initialize Account Card with zero balance status values
-                $insLedger = "INSERT INTO ledger (did, syid, sid, csid, amt, tfee, balance, remarks, transdate) 
-                              VALUES ($dept, $csyid, $cssid, $student_csid, '$calculatedAssessment', '0', '$calculatedAssessment', 'Unpaid', '$today')";
-                if($dbcon->query($insLedger)) {
-                    $newClid = $dbcon->insert_id;
-                    $dbcon->query("INSERT INTO payment (did, clid, csid, syid, sid, amount, amtpaid, balance, paymentdate, or_number) 
-                                   VALUES ($dept, $newClid, $student_csid, $csyid, $cssid, '$calculatedAssessment', 0, '$calculatedAssessment', '$today', '')");
-                }
-            } else {
-                $lRow = $checkLedgerEx->fetch_assoc();
-                $existingClid = intval($lRow['clid']);
-                
-                // Get the total sum of payments recorded
-                $pSum = $dbcon->query("SELECT SUM(amtpaid) as total_paid FROM payment WHERE clid=$existingClid AND amtpaid > 0");
-                $pSumData = $pSum->fetch_assoc();
-                $totalPaidSoFar = floatval($pSumData['total_paid'] ?? 0.00);
-                
-                $updatedBalance = $calculatedAssessment - $totalPaidSoFar;
-                $updatedRemarks = ($updatedBalance <= 0) ? 'Paid' : 'Unpaid';
-                
-                $dbcon->query("UPDATE ledger SET amt='$calculatedAssessment', tfee='$totalPaidSoFar', balance='$updatedBalance', remarks='$updatedRemarks' WHERE clid=$existingClid");
-                $dbcon->query("UPDATE payment SET amount='$calculatedAssessment' WHERE clid=$existingClid AND amtpaid=0 LIMIT 1");
-            }
-        }
-    }
-
-    // Process Cash Remittance Transaction Submission
-    if(isset($_POST['btnProcessPayment'])){
-        $scolid = intval($_POST['colid']); //
-        $samt = floatval($_POST['amt']); //
-        $scsid = intval($_POST['scsid']); //
-        $or_number = $dbcon->real_escape_string(trim($_POST['or_number'])); //
-        $payment_date = $dbcon->real_escape_string($_POST['payment_date']); //
-            
-        $strTF = "SELECT SUM(amtpaid) as totalFee FROM payment WHERE clid=".$scolid; //
-        $tfRes = $dbcon->query($strTF); 
-        $tfData = $tfRes->fetch_assoc(); 
-        $tFees = floatval($tfData['totalFee'] ?? 0);
-                
-        $strPayment = "SELECT amount, balance FROM payment WHERE clid=".$scolid." ORDER BY pid DESC LIMIT 1"; 
-        $resPayment = $dbcon->query($strPayment);    
-        $paymentData = $resPayment->fetch_assoc();        
-        $amount = floatval($paymentData['amount']); 
-        $balance = floatval($paymentData['balance']); 
-
-        if($samt > $balance){ 
-            $statusMsg = "Warning: Remittance amount exceeds student's current outstanding balance."; 
-            $msgClass = "border-red-500 bg-red-50 text-red-700"; 
-        } else {
-            $cAmtPaid = $tFees + $samt; 
-            $cBalance = $balance - $samt; 
-            
-            $strUP = "INSERT INTO payment (did, clid, csid, syid, sid, amount, amtpaid, balance, paymentdate, or_number) 
-                      VALUES (".$dept.", ".$scolid.", ".$scsid.", ".$csyid.", ".$cssid.", '".$amount."', '".$samt."', '".$cBalance."', '".$payment_date."', '".$or_number."')"; 
-            $dbcon->query($strUP);        
-            
-            $remStat = ($cBalance <= 0) ? 'Paid' : 'Unpaid'; 
-            $strCledger = "UPDATE ledger SET remarks='".$remStat."', tfee='".$cAmtPaid."', balance='".$cBalance."' WHERE clid=".$scolid; 
-            $dbcon->query($strCledger);    
-            
-            echo "<script>window.location.replace(window.location.href);</script>"; 
-            exit(); 
-        }
-    }
 ?>
 
-<div class="p-6 space-y-6">
-    <div class="flex flex-wrap lg:flex-nowrap gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-hide">
-        <button onclick="smartPrintDirectory()" class="px-5 py-2.5 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
-            <i class="icon-print"></i> Print Directory List
-        </button>
+<div class="p-6">
+    <div class="flex flex-wrap lg:flex-nowrap gap-4 mb-6 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-hide">
+        <div class="text-sm font-bold text-gray-700 uppercase tracking-wide">Cash Collection Workstation</div>
         <div class="flex flex-wrap gap-3 items-center">
-            <select id="filterProgram" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+            <div class="text-sm font-semibold text-gray-600">Filters:</div>
+            <select id="filterProgram" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
                 <option value="">All Programs</option>
                 <?php
-                $fRes = $dbcon->query("SELECT program FROM offerings GROUP BY program"); 
-                while($f = $fRes->fetch_assoc()) echo "<option value='".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; 
+                $fRes=$dbcon->query("SELECT program FROM offerings GROUP BY program");
+                while($f=$fRes->fetch_assoc()) echo "<option value='".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
                 ?>
             </select>
-            <div class="ml-2 text-gray-600 font-medium border-l border-gray-300 pl-4">
-                Term Instance: <span class="text-green-700 font-bold"><?php echo htmlspecialchars($s); ?> (<?php echo htmlspecialchars($cssemester); ?>)</span>
-            </div>
+            <select id="filterLevel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                <option value="">All Levels</option>
+                <?php
+                $glRes=$dbcon->query("SELECT glevel FROM gradelevel GROUP BY glevel");
+                while($gl=$glRes->fetch_assoc()) echo "<option value='".htmlspecialchars($gl['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($gl['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
+                ?>
+            </select>
         </div>
     </div>
 
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
         <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 print-hide">
-            <h3 class="text-white text-lg font-semibold">Student Account Ledgers (Subject Catalog Auto-Calculation Engine)</h3>
+            <h3 class="text-white text-lg font-semibold">Remittance Ledger and Payment Management</h3>
         </div>
         <div class="p-6">
             <div class="overflow-x-auto">
-                <table class="w-full border-collapse" id="dataTables-ledger">
+                <table class="w-full border-collapse text-sm text-gray-800" id="dataTables-example">
                     <thead>
-                        <tr class="bg-gray-100 border-b-2 border-gray-300">
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Student ID</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Student Name</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Program</th>
-                            <th class="px-4 py-3 text-right font-semibold text-gray-700">Assessment Charge</th>
-                            <th class="px-4 py-3 text-right font-semibold text-gray-700">Total Payments</th>
-                            <th class="px-4 py-3 text-right font-semibold text-gray-700">Remaining Balance</th>
-                            <th class="px-4 py-3 text-center font-semibold text-gray-700 print-hide" style="min-width: 340px;">Actions</th>
+                        <tr class="bg-gray-100 border-b-2 border-gray-300 text-left text-sm font-bold uppercase text-gray-700">
+                            <th class="px-4 py-3">Student ID</th>
+                            <th class="px-4 py-3">Student Name</th>
+                            <th class="px-4 py-3">Program</th>
+                            <th class="px-4 py-3 hidden">Level</th>
+                            <th class="px-4 py-3 text-right">Assessment</th>
+                            <th class="px-4 py-3 text-right">Total Paid</th>
+                            <th class="px-4 py-3 text-right">Current Balance</th>
+                            <th class="px-4 py-3 text-center print-hide" style="min-width: 200px;">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-gray-200">
                     <?php 
-                    $strQry = "SELECT l.clid, l.syid, l.sid, l.csid, l.amt, l.tfee, l.balance, l.remarks,
-                                s.studentid, s.fname, s.mname, s.lname, o.program,
-                                (SELECT COUNT(ss_id) FROM student_subjects WHERE csid=s.csid AND syid=$csyid AND sid=$cssid) as subject_count
-                                FROM ledger l
-                                LEFT JOIN students s ON s.csid = l.csid
-                                LEFT JOIN offerings o ON o.cid = s.cid
-                                WHERE l.syid = $csyid AND l.sid = $cssid AND l.did = $dept
-                                ORDER BY s.lname ASC"; 
-                    $qryRes = $dbcon->query($strQry); 
-                    while($row = $qryRes->fetch_assoc()){ 
-                        if(empty($row['csid'])) continue; 
-                        $fullName = trim(($row['lname'] ?? '') . ", " . ($row['fname'] ?? '') . " " . ($row['mname'] ?? '')); 
-                        $charge = floatval($row['amt']); 
-                        $paid = floatval($row['tfee']); 
-                        $balance = floatval($row['balance']); 
-                        $subCount = intval($row['subject_count'] ?? 0);
+                    $strQry="SELECT cs.csid, cs.studentid, cs.fname, cs.mname, cs.lname, 
+                                (SELECT program FROM offerings WHERE cid=cs.cid) as program,
+                                (SELECT glevel FROM gradelevel WHERE gid=cs.gid) as glevel,
+                                (SELECT COUNT(*) FROM student_subjects WHERE csid=cs.csid) as subject_count,
+                                (SELECT IFNULL(SUM(price), 0) FROM student_subjects WHERE csid=cs.csid) as total_tuition,
+                                (SELECT COUNT(*) FROM student_subjects WHERE csid=cs.csid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%') as major_count,
+                                (SELECT IFNULL(SUM(amount), 0) FROM ledger WHERE csid=cs.csid) as total_paid
+                                FROM students cs ORDER BY cs.csid DESC";
+                    $qryRes=$dbcon->query($strQry);
+                    while($row=$qryRes->fetch_assoc()){
+                        if (intval($row['subject_count']) === 0) continue;
+
+                        $fullName = trim(($row['lname'] ?? '') . ", " . ($row['fname'] ?? '') . " " . ($row['mname'] ?? ''));
+                        $tuition = floatval($row['total_tuition']);
+                        $misc = 9000.00;
+                        $lab = intval($row['major_count']) * 540.00;
+                        $assessment = $tuition + $misc + $lab;
+                        $paid = floatval($row['total_paid']);
+                        $balance = $assessment - $paid;
+                        $balColor = ($balance <= 0) ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
                         ?>
                         <tr class="hover:bg-gray-50 transition duration-150">
-                            <td class="px-4 py-3 text-gray-700 font-medium"><?php echo htmlspecialchars($row['studentid'] ?? '');?></td> 
-                            <td class="px-4 py-3 text-gray-800 font-semibold">
-                                <?php echo htmlspecialchars($fullName);?>
-                                <span class="block text-xs font-semibold text-blue-600 mt-0.5"><i class="icon-book"></i> <?php echo $subCount; ?> Subjects Enrolled</span>
-                            </td>
-                            <td class="px-4 py-3 text-green-700 font-semibold"><?php echo htmlspecialchars($row['program'] ?? '');?></td> 
-                            <td class="px-4 py-3 text-right font-medium text-gray-900">₱<?php echo number_format($charge, 2); ?></td> 
-                            <td class="px-4 py-3 text-right font-medium text-blue-600">₱<?php echo number_format($paid, 2); ?></td> 
-                            <td class="px-4 py-3 text-right font-bold <?php echo ($balance <= 0) ? 'text-green-600' : 'text-red-600'; ?>"> 
-                                ₱<?php echo number_format($balance, 2); ?> 
-                            </td>
+                            <td class="px-4 py-3 text-gray-700 font-medium"><?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
+                            <td class="px-4 py-3 font-semibold text-gray-900"><?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');?></td>
+                            <td class="px-4 py-3 text-green-700 font-semibold"><?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
+                            <td class="px-4 py-3 hidden"><?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
+                            <td class="px-4 py-3 text-right font-medium text-gray-800"><?php echo number_format($assessment, 2); ?> ₱</td>
+                            <td class="px-4 py-3 text-right text-blue-600 font-medium"><?php echo number_format($paid, 2); ?> ₱</td>
+                            <td class="px-4 py-3 text-right <?php echo $balColor; ?>"><?php echo number_format($balance, 2); ?> ₱</td>
                             <td class="px-4 py-3 print-hide">
-                                <div class="flex gap-1.5 w-full">
-                                    <button type="button" class="px-2.5 py-1.5 bg-blue-500 hover:bg-blue-600 text-white font-semibold rounded text-xs"
-                                            onclick="openManageSubjectsWindow(<?php echo $row['csid']; ?>, '<?php echo htmlspecialchars($fullName, ENT_QUOTES); ?>')">
-                                        <i class="icon-book"></i> Enrolled Subjects
+                                <div class="flex gap-2 w-full">
+                                    <button type="button" class="flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2 text-sm"
+                                            onclick="triggerPaymentModal(this)"
+                                            data-csid="<?php echo $row['csid']; ?>"
+                                            data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-studentid="<?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-balance="<?php echo $balance; ?>">
+                                        <i class="icon-money"></i> Pay
                                     </button>
-                                    <button type="button" class="px-2.5 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded text-xs"
-                                            onclick="triggerCashPaymentWindow(this)"
-                                            data-clid="<?php echo $row['clid']; ?>" data-csid="<?php echo $row['csid']; ?>"
-                                            data-idnum="<?php echo htmlspecialchars($row['studentid'] ?? ''); ?>" data-name="<?php echo htmlspecialchars($fullName); ?>"
-                                            data-charge="<?php echo $charge; ?>" data-paid="<?php echo $paid; ?>" data-balance="<?php echo $balance; ?>">
-                                        <i class="icon-money"></i> Pay/Downpayment
-                                    </button>
-                                    <button type="button" class="px-2.5 py-1.5 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded text-xs"
-                                            onclick="printStatementOfAccount(this)"
-                                            data-name="<?php echo htmlspecialchars($fullName); ?>" data-idnum="<?php echo htmlspecialchars($row['studentid'] ?? ''); ?>"
-                                            data-program="<?php echo htmlspecialchars($row['program'] ?? ''); ?>" data-charge="<?php echo number_format($charge, 2); ?>"
-                                            data-paid="<?php echo number_format($paid, 2); ?>" data-balance="<?php echo number_format($balance, 2); ?>" data-clid="<?php echo $row['clid']; ?>">
+                                    <button type="button" class="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2 text-sm"
+                                            onclick="triggerSOAModal(this)"
+                                            data-csid="<?php echo $row['csid']; ?>"
+                                            data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-studentid="<?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-program="<?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-level="<?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
+                                            data-tuition="<?php echo $tuition; ?>"
+                                            data-majors="<?php echo $row['major_count']; ?>"
+                                            data-assessment="<?php echo $assessment; ?>"
+                                            data-paid="<?php echo $paid; ?>"
+                                            data-balance="<?php echo $balance; ?>">
                                         <i class="icon-file-text"></i> SOA
                                     </button>
                                 </div>
@@ -316,267 +312,534 @@
     </div>
 </div>
 
-<div class="modal-overlay print-hide" id="manageSubjectsModal" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-6 py-4 flex justify-between items-center">
-                <h4 class="text-lg font-bold text-white"><i class="icon-book"></i> Student Subject Registration</h4>
-                <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('manageSubjectsModal'); window.location.reload();">&times;</button>
-            </div>
-            <div class="modal-body p-6 space-y-4">
-                <div class="p-3 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-sm">
-                    Student Target: <span id="subj_student_name" class="font-bold"></span>
-                </div>
+<div class="modal-overlay print-hide" id="paymentModal" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-sm">
+        <div class="modal-content text-sm">
+            <form id="ajaxPaymentForm" onsubmit="savePaymentTransaction(event)" class="mb-0">
+                <input type="hidden" id="payment_csid" name="payment_csid" value="">
+                <input type="hidden" name="action_type" value="add_payment_entry">
                 
-                <div class="grid grid-cols-1 md:grid-cols-4 gap-2 items-end bg-gray-50 p-4 rounded-xl border">
-                    <div class="md:col-span-3">
-                        <label class="block text-gray-700 font-semibold mb-1 text-xs">Select Subject from Catalog</label>
-                        <select id="select_catalog_subject" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white">
-                            <?php
-                            $sb = $dbcon->query("SELECT sub_id, subject_code, subject_title, price FROM subjects WHERE did=$dept ORDER BY subject_code ASC");
-                            while($sbr = $sb->fetch_assoc()){
-                                echo "<option value='".$sbr['sub_id']."'>".$sbr['subject_code']." - ".$sbr['subject_title']." (₱".number_format($sbr['price'],2).")</option>";
-                            }
-                            ?>
+                <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-6 py-4 flex justify-between items-center">
+                    <h4 class="text-lg font-bold text-white">Record Remittance Transaction</h4>
+                    <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('paymentModal')">&times;</button>
+                </div>
+                <div class="modal-body p-6 space-y-4">
+                    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm text-blue-900 grid grid-cols-2 gap-2 shadow-sm">
+                        <div><b>Name:</b> <span id="lbl_student_name" class="font-semibold text-gray-900"></span></div>
+                        <div><b>ID Number:</b> <span id="lbl_student_id" class="font-semibold text-gray-900"></span></div>
+                        <div class="col-span-2 border-t pt-2 mt-1"><b>Unsettled Balance:</b> <span id="lbl_student_balance" class="font-bold text-red-600 text-base"></span></div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">For School Year *</label>
+                            <select name="payment_syid" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white font-medium" required>
+                                <?php
+                                $syList = $dbcon->query("SELECT syid, syname FROM sy ORDER BY syname DESC");
+                                while($syRow = $syList->fetch_assoc()){
+                                    $sel = ($syRow['syid'] == $csyid) ? 'selected' : '';
+                                    echo "<option value='".intval($syRow['syid'])."' {$sel}>".htmlspecialchars($syRow['syname'])."</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">For Semester *</label>
+                            <select name="payment_sid" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white font-medium" required>
+                                <?php
+                                $semList = $dbcon->query("SELECT sid, semester FROM sem ORDER BY sid ASC");
+                                while($semRow = $semList->fetch_assoc()){
+                                    $sel = ($semRow['sid'] == $cssid) ? 'selected' : '';
+                                    echo "<option value='".intval($semRow['sid'])."' {$sel}>".htmlspecialchars($semRow['semester'])."</option>";
+                                }
+                                ?>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">O.R. Number *</label>
+                            <input type="text" id="or_no" name="or_no" class="w-full px-3 py-2 border border-gray-300 rounded text-sm font-bold bg-white" placeholder="e.g. 10452" required>
+                        </div>
+                        <div>
+                            <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">Payment Date *</label>
+                            <input type="date" id="payment_date" name="payment_date" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white" value="<?php echo date('Y-m-d'); ?>" required>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">Amount Paid (PHP) *</label>
+                        <input type="number" step="0.01" min="0.01" id="payment_amount" name="payment_amount" class="w-full px-3 py-2 border border-gray-300 rounded text-base font-bold bg-white text-gray-900" placeholder="0.00" required>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">Remarks / Payment Stage *</label>
+                        <select id="remarks" name="remarks" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white font-medium" required>
+                            <option value="" disabled selected>Select Remittance Descriptor...</option>
+                            <option value="Downpayment">Downpayment</option>
+                            <option value="Full payment">Full payment</option>
+                            <option value="" disabled class="text-gray-400">───────────────────────────────</option>
+                            <option value="Prelim">Prelim</option>
+                            <option value="Midterm">Midterm</option>
+                            <option value="PreFinal">PreFinal</option>
+                            <option value="Final">Final</option>
                         </select>
                     </div>
-                    <button type="button" onclick="addSubjectToStudentAction()" class="w-full py-2 bg-blue-600 text-white rounded font-bold text-sm hover:bg-blue-700">Add Entry</button>
-                </div>
 
-                <table class="w-full text-left text-xs border border-gray-200 rounded">
-                    <thead>
-                        <tr class="bg-gray-100 text-gray-700 font-semibold border-b">
-                            <th class="p-2">Code</th>
-                            <th class="p-2">Title</th>
-                            <th class="p-2 text-right">Price Fee</th>
-                            <th class="p-2 text-center">Action</th>
-                        </tr>
-                    </thead>
-                    <tbody id="student_enrolled_subjects_tbody" class="divide-y">
-                        </tbody>
-                </table>
-            </div>
-            <div class="modal-footer bg-gray-50 flex justify-end p-4 rounded-b-lg">
-                <button type="button" class="px-5 py-2 bg-blue-600 text-white font-bold rounded shadow" onclick="closeModal('manageSubjectsModal'); window.location.reload();">Done &amp; Sync Ledger</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="modal-overlay print-hide" id="cashPaymentModal" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form role="form" method="post" action="<?php echo $formActionUrl; ?>">
-                <div class="bg-gradient-to-r from-green-700 to-green-600 px-6 py-4 flex justify-between items-center">
-                    <h4 class="text-lg font-bold text-white">Record Cash Remittance Payment</h4>
-                    <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('cashPaymentModal')">&times;</button>
-                </div>
-                <div class="modal-body p-6">
-                    <input type="hidden" name="colid" id="pay_clid" value="">
-                    <input type="hidden" name="scsid" id="pay_csid" value="">
-
-                    <div class="mb-4 bg-green-50 p-4 rounded-xl border text-sm text-green-900 grid grid-cols-2 gap-2">
-                        <div><b>Student Name:</b> <span id="lbl_student_name"></span></div>
-                        <div><b>Student ID:</b> <span id="lbl_student_id"></span></div>
-                        <div><b>Total Tuition Assessment:</b> ₱<span id="lbl_total_charge"></span></div>
-                        <div><b>Total Payments Logged:</b> ₱<span id="lbl_total_paid"></span></div>
-                    </div>
-
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 bg-gray-50 p-4 rounded-xl border">
-                        <div>
-                            <label class="block text-gray-700 font-semibold mb-1 text-xs">Receipt / O.R. # *</label>
-                            <input type="text" name="or_number" class="w-full px-3 py-1.5 border rounded text-sm" placeholder="e.g., OR-10234" required>
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 font-semibold mb-1 text-xs">Payment Date *</label>
-                            <input type="date" name="payment_date" class="w-full px-3 py-1.5 border rounded text-sm" value="<?php echo $today; ?>" required>
-                        </div>
-                        <div>
-                            <label class="block text-gray-700 font-semibold mb-1 text-xs">Amount Paid (₱) *</label>
-                            <input type="number" step="0.01" min="0.01" name="amt" id="pay_input_amount" oninput="calculateLiveCashBalance()" class="w-full px-3 py-1.5 border rounded font-bold text-sm" placeholder="0.00" required>
+                    <div class="border border-gray-200 rounded-lg overflow-hidden bg-white mt-2">
+                        <div class="bg-gray-50 px-3 py-2 border-b text-xs font-bold text-gray-600">Personal Remittance History</div>
+                        <div class="max-h-[140px] overflow-y-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-gray-100 text-gray-700 font-bold border-b sticky top-0">
+                                    <tr>
+                                        <th class="p-2">O.R. No</th>
+                                        <th class="p-2">Date</th>
+                                        <th class="p-2 text-right">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="history_table_body" class="divide-y text-gray-700"></tbody>
+                            </table>
                         </div>
                     </div>
-                    
-                    <div class="mb-4 p-3 bg-gray-100 rounded-lg flex justify-between text-sm">
-                        <span class="font-semibold text-gray-700">Expected Outstanding Balance:</span>
-                        <span class="font-bold text-lg text-gray-900" id="lbl_live_balance">₱0.00</span>
-                    </div>
-
-                    <h5 class="text-xs font-bold text-gray-700 mb-2 uppercase">Historical Receipts Log</h5>
-                    <div class="overflow-x-auto border rounded-lg max-h-[150px] overflow-y-auto bg-white">
-                        <table class="w-full text-left text-xs">
-                            <thead class="bg-gray-100 text-gray-700 border-b font-semibold">
-                                <tr>
-                                    <th class="p-2">Receipt Number</th>
-                                    <th class="p-2">Date Logged</th>
-                                    <th class="p-2 text-right">Amount Paid</th>
-                                </tr>
-                            </thead>
-                            <tbody id="payment_history_table_body" class="divide-y text-gray-600"></tbody>
-                        </table>
-                    </div>
                 </div>
-                <div class="modal-footer bg-gray-50 flex justify-end gap-3 p-4 rounded-b-lg">
-                    <button type="button" class="px-4 py-2 bg-gray-300 text-gray-800 rounded font-semibold text-sm" onclick="closeModal('cashPaymentModal')">Cancel</button>
-                    <button type="submit" name="btnProcessPayment" class="px-4 py-2 bg-green-600 text-white rounded font-semibold text-sm shadow-sm">Save Transaction</button>
+                <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg border-t p-4">
+                    <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded text-sm" onclick="closeModal('paymentModal')">Close</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm shadow">Post Remittance</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
 
+<div class="modal-overlay print-hide" id="soaModal" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content text-sm">
+            <div class="bg-gradient-to-r from-purple-700 to-purple-600 px-6 py-4 flex justify-between items-center">
+                <h4 class="text-lg font-bold text-white">Statement of Account & Ledger Preview</h4>
+                <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('soaModal')">&times;</button>
+            </div>
+            <div class="modal-body p-6 space-y-4">
+                <input type="hidden" id="print_csid" value="">
+                <input type="hidden" id="print_name" value="">
+                <input type="hidden" id="print_idnum" value="">
+                <input type="hidden" id="print_program" value="">
+                <input type="hidden" id="print_level" value="">
+                <input type="hidden" id="print_tuition" value="">
+                <input type="hidden" id="print_majors" value="">
+                <input type="hidden" id="print_assessment" value="">
+                
+                <input type="hidden" id="print_paid" value="">
+                <input type="hidden" id="print_balance" value="">
+
+                <div class="bg-purple-50 p-4 rounded-xl border border-purple-100 text-sm text-purple-900 grid grid-cols-2 gap-2 shadow-sm">
+                    <div><b>Learner Name:</b> <span id="lbl_soa_name" class="font-semibold text-gray-900"></span></div>
+                    <div><b>Student ID:</b> <span id="lbl_soa_id" class="font-semibold text-gray-900"></span></div>
+                    <div><b>Program:</b> <span id="lbl_soa_program" class="font-semibold text-gray-900"></span></div>
+                    <div><b>Year Level:</b> <span id="lbl_soa_level" class="font-semibold text-gray-900"></span></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div>
+                        <label class="block text-gray-700 font-bold mb-1 text-xs uppercase tracking-wider"><i class="icon-filter"></i> School Year Filter</label>
+                        <select id="soa_filter_sy" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500" onchange="filterSOAPaymentsByTerm()">
+                            <option value="ALL">All Academic Years</option>
+                            <option value="Legacy Term">Legacy Term (Unstamped)</option>
+                            <?php
+                            $syListFilter = $dbcon->query("SELECT syname FROM sy ORDER BY syname DESC");
+                            while($sfRow = $syListFilter->fetch_assoc()){
+                                echo "<option value='".htmlspecialchars($sfRow['syname'], ENT_QUOTES)."'>".htmlspecialchars($sfRow['syname'])."</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-gray-700 font-bold mb-1 text-xs uppercase tracking-wider"><i class="icon-filter"></i> Semester Filter</label>
+                        <select id="soa_filter_sem" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white font-semibold text-gray-800 focus:outline-none focus:ring-2 focus:ring-purple-500" onchange="filterSOAPaymentsByTerm()">
+                            <option value="ALL">All Semesters</option>
+                            <option value="Legacy Sem">Legacy Sem (Unstamped)</option>
+                            <?php
+                            $semListFilter = $dbcon->query("SELECT semester FROM sem ORDER BY sid ASC");
+                            while($smfRow = $semListFilter->fetch_assoc()){
+                                echo "<option value='".htmlspecialchars($smfRow['semester'], ENT_QUOTES)."'>".htmlspecialchars($smfRow['semester'])."</option>";
+                            }
+                            ?>
+                        </select>
+                    </div>
+                </div>
+
+                <h5 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Payment History Log Matrix</h5>
+                <div class="border border-gray-200 rounded-lg overflow-hidden bg-white">
+                    <div class="max-h-[220px] overflow-y-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-gray-100 text-gray-700 font-bold border-b sticky top-0">
+                                <tr>
+                                    <th class="p-3">School Year</th>
+                                    <th class="p-3">Semester</th>
+                                    <th class="p-3">O.R. Number</th>
+                                    <th class="p-3">Date Paid</th>
+                                    <th class="p-3">Stage / Remarks</th>
+                                    <th class="p-3 text-right">Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="soa_history_table_body" class="divide-y text-gray-700"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-800 font-medium shadow-sm">
+                    <h5 class="font-bold uppercase tracking-wider text-xs text-gray-500 mb-2 border-b pb-1">Current Assessment Balance Overview</h5>
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between"><span>Base Tuition Fee:</span><span id="lbl_soa_tuition" class="font-semibold text-gray-900">0.00 ₱</span></div>
+                        <div class="flex justify-between"><span>Miscellaneous Flat Fees:</span><span class="font-semibold text-gray-900">9,000.00 ₱</span></div>
+                        <div class="flex justify-between"><span>Laboratory Fees (<span id="lbl_soa_majors_count">0</span> Major Subjects):</span><span id="lbl_soa_lab" class="font-semibold text-gray-900">0.00 ₱</span></div>
+                        <div class="flex justify-between text-blue-600 font-bold"><span>Total Remitted Payments (Filtered Scope):</span><span id="lbl_soa_total_paid">0.00 ₱</span></div>
+                        <div class="flex justify-between border-t pt-2 text-base font-bold text-red-600"><span>Outstanding Term Bill Balance:</span><span id="lbl_soa_total_balance">0.00 ₱</span></div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-gray-50 flex justify-between items-center rounded-b-lg border-t p-4">
+                <button type="button" onclick="executeSOAPrint()" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center gap-2 text-sm">
+                    <i class="icon-print"></i> Print Filtered History & SOA
+                </button>
+                <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded text-sm" onclick="closeModal('soaModal')">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
-var active_student_csid = 0;
-var currentOutstandingBalance = 0;
+window.cachedSOAPayments = [];
 
-function openManageSubjectsWindow(csid, studentName) {
-    active_student_csid = csid;
-    document.getElementById('subj_student_name').innerText = studentName;
-    loadStudentSubjectsTable();
-    openModal('manageSubjectsModal');
-}
-
-function loadStudentSubjectsTable() {
-    $.ajax({
-        type: 'POST',
-        url: window.location.href,
-        data: { action_type: 'get_student_subjects', csid: active_student_csid },
-        dataType: 'json',
-        success: function(res) {
-            var html = '';
-            if(res.length === 0) {
-                html = '<tr><td colspan="4" class="p-3 text-center text-gray-400 italic">No course subjects enrolled for this term profile yet.</td></tr>';
-            } else {
-                res.forEach(function(row) {
-                    html += `<tr>
-                        <td class="p-2 font-bold">${row.subject_code}</td>
-                        <td class="p-2">${row.subject_title} (${row.units} Units)</td>
-                        <td class="p-2 text-right text-green-700 font-semibold">₱${parseFloat(row.price).toFixed(2)}</td>
-                        <td class="p-2 text-center">
-                            <button type="button" onclick="dropSubjectAction(${row.sub_id})" class="px-2 py-0.5 bg-red-600 text-white rounded text-[10px]">Drop</button>
-                        </td>
-                    </tr>`;
-                });
-            }
-            document.getElementById('student_enrolled_subjects_tbody').innerHTML = html;
+// 🛠️ UPGRADED ENHANCEMENT: Absolute stream-end array extraction parser logic
+function parsePollutedJson(response) {
+    if (typeof response !== 'string') return response;
+    var cleanStr = response.trim();
+    
+    // Direct matches pure structures at the end of the response layout grid
+    var arrayMatch = cleanStr.match(/\[\s*\{[\s\S]*\}\s*\]$/) || cleanStr.match(/\[\s*\]$/);
+    if (arrayMatch) {
+        return JSON.parse(arrayMatch[0]);
+    }
+    
+    // Secure index locator fallback scan rules
+    var lastArr = cleanStr.lastIndexOf(']');
+    if (lastArr !== -1) {
+        var startToken = cleanStr.lastIndexOf('[', lastArr);
+        if (startToken !== -1) {
+            return JSON.parse(cleanStr.substring(startToken, lastArr + 1));
         }
-    });
+    }
+    throw new Error("Unable to isolate valid JSON matrix stream boundaries.");
 }
 
-function addSubjectToStudentAction() {
-    var sub_id = document.getElementById('select_catalog_subject').value;
-    if(!sub_id) return;
+function triggerPaymentModal(btn) {
+    var csid = btn.getAttribute('data-csid') || '';
+    document.getElementById('payment_csid').value = csid;
+    document.getElementById('lbl_student_name').innerText = btn.getAttribute('data-name') || '';
+    document.getElementById('lbl_student_id').innerText = btn.getAttribute('data-studentid') || '';
+    
+    var bal = parseFloat(btn.getAttribute('data-balance')) || 0;
+    document.getElementById('lbl_student_balance').innerText = bal.toFixed(2) + " PHP";
+    
+    document.getElementById('or_no').value = '';
+    document.getElementById('payment_amount').value = '';
+    document.getElementById('remarks').value = '';
+    
+    fetchPaymentLogsList(csid);
+    openModal('paymentModal');
+}
+
+function fetchPaymentLogsList(csid) {
     $.ajax({
         type: 'POST',
         url: window.location.href,
-        data: { action_type: 'add_subject_to_student', csid: active_student_csid, sub_id: sub_id },
-        dataType: 'json',
-        success: function() { loadStudentSubjectsTable(); }
-    });
-}
-
-function dropSubjectAction(sub_id) {
-    if(!confirm('Drop this subject assignment?')) return;
-    $.ajax({
-        type: 'POST',
-        url: window.location.href,
-        data: { action_type: 'drop_student_subject', csid: active_student_csid, sub_id: sub_id },
-        dataType: 'json',
-        success: function() { loadStudentSubjectsTable(); }
-    });
-}
-
-function triggerCashPaymentWindow(btn) {
-    var clid = btn.getAttribute('data-clid');
-    var csid = btn.getAttribute('data-csid');
-    var idnum = btn.getAttribute('data-idnum');
-    var name = btn.getAttribute('data-name');
-    var charge = parseFloat(btn.getAttribute('data-charge')) || 0;
-    var paid = parseFloat(btn.getAttribute('data-paid')) || 0;
-    var balance = parseFloat(btn.getAttribute('data-balance')) || 0;
-
-    currentOutstandingBalance = balance;
-
-    document.getElementById('pay_clid').value = clid;
-    document.getElementById('pay_csid').value = csid;
-    document.getElementById('lbl_student_name').innerText = name;
-    document.getElementById('lbl_student_id').innerText = idnum;
-    document.getElementById('lbl_total_charge').innerText = charge.toFixed(2);
-    document.getElementById('lbl_total_paid').innerText = paid.toFixed(2);
-    document.getElementById('pay_input_amount').value = '';
-    document.getElementById('lbl_live_balance').innerText = '₱' + balance.toFixed(2);
-
-    fetchPaymentLogsSubtable(clid);
-    openModal('cashPaymentModal');
-}
-
-function calculateLiveCashBalance() {
-    var inputAmt = parseFloat(document.getElementById('pay_input_amount').value) || 0;
-    var liveBalance = currentOutstandingBalance - inputAmt;
-    document.getElementById('lbl_live_balance').innerText = '₱' + liveBalance.toFixed(2);
-}
-
-function fetchPaymentLogsSubtable(clid) {
-    $.ajax({
-        type: 'POST',
-        url: window.location.href,
-        data: { action_type: 'fetch_payment_history', clid: clid },
-        dataType: 'json',
-        success: function(data) {
+        data: { action_type: 'fetch_payment_history', csid: csid },
+        success: function(response) {
+            var data;
+            try { 
+                data = parsePollutedJson(response); 
+            } catch(e) { 
+                console.error("Payment modal JSON parse failed:", e, response);
+                return; 
+            }
             var html = '';
-            if(data.length === 0) {
-                html = '<tr><td colspan="3" class="p-2 text-center text-gray-400 italic">No ledger history.</td></tr>';
+            if(!data || data.length === 0) {
+                html = '<tr><td colspan="3" class="p-2 text-center text-gray-400 italic">No payments recorded.</td></tr>';
             } else {
                 data.forEach(function(row) {
-                    html += `<tr><td class="p-2 font-bold">${row.or_number}</td><td class="p-2">${row.paymentdate}</td><td class="p-2 text-right font-bold">₱${parseFloat(row.amtpaid).toFixed(2)}</td></tr>`;
+                    html += `<tr class="border-b text-gray-600"><td class="p-2 font-mono font-bold">${escapeHtml(row.or_no)}</td><td class="p-2">${escapeHtml(row.payment_date)}</td><td class="p-2 text-right text-blue-600 font-semibold">${row.amount.toFixed(2)} ₱</td></tr>`;
                 });
             }
-            document.getElementById('payment_history_table_body').innerHTML = html;
+            document.getElementById('history_table_body').innerHTML = html;
+        },
+        error: function(xhr) {
+            console.error("AJAX Error in logs historical polling channel:", xhr);
         }
     });
 }
 
-function printStatementOfAccount(btn) {
-    var name = btn.getAttribute('data-name');
-    var idnum = btn.getAttribute('data-idnum');
-    var program = btn.getAttribute('data-program');
-    var charge = btn.getAttribute('data-charge');
-    var paid = btn.getAttribute('data-paid');
-    var balance = btn.getAttribute('data-balance');
-    var clid = btn.getAttribute('data-clid');
-    var logoSrc = "<?php echo $defaultPic; ?>";
+function savePaymentTransaction(e) {
+    e.preventDefault();
+    var formData = $('#ajaxPaymentForm').serialize();
+    $.ajax({
+        type: 'POST',
+        url: window.location.href,
+        data: formData,
+        success: function(response) {
+            try {
+                var res = parsePollutedJson(response);
+                if (res.status === "success") {
+                    window.location.replace(window.location.href);
+                } else {
+                    alert("⚠️ O.R. Number Restriction Conflict:\n" + res.message);
+                }
+            } catch(e) {
+                window.location.replace(window.location.href);
+            }
+        },
+        error: function() {
+            alert("Exception encountered inside remittance layer.");
+        }
+    });
+}
+
+function triggerSOAModal(btn) {
+    var csid = btn.getAttribute('data-csid') || '';
+    var name = btn.getAttribute('data-name') || '';
+    var studentid = btn.getAttribute('data-studentid') || '';
+    var program = btn.getAttribute('data-program') || '';
+    var level = btn.getAttribute('data-level') || '';
+    
+    var tuition = parseFloat(btn.getAttribute('data-tuition')) || 0;
+    var majors = parseInt(btn.getAttribute('data-majors')) || 0;
+    var assessment = parseFloat(btn.getAttribute('data-assessment')) || 0;
+
+    document.getElementById('print_csid').value = csid;
+    document.getElementById('print_name').value = name;
+    document.getElementById('print_idnum').value = studentid;
+    document.getElementById('print_program').value = program;
+    document.getElementById('print_level').value = level;
+    document.getElementById('print_tuition').value = tuition;
+    document.getElementById('print_majors').value = majors;
+    document.getElementById('print_assessment').value = assessment;
+
+    document.getElementById('lbl_soa_name').innerText = name;
+    document.getElementById('lbl_soa_id').innerText = studentid;
+    document.getElementById('lbl_soa_program').innerText = program;
+    document.getElementById('lbl_soa_level').innerText = level;
+
+    document.getElementById('lbl_soa_tuition').innerText = tuition.toFixed(2) + " ₱";
+    document.getElementById('lbl_soa_majors_count').innerText = majors;
+    document.getElementById('lbl_soa_lab').innerText = (majors * 540).toFixed(2) + " ₱";
+    
+    document.getElementById('soa_filter_sy').value = 'ALL';
+    document.getElementById('soa_filter_sem').value = 'ALL';
+    document.getElementById('soa_history_table_body').innerHTML = '<tr><td colspan="6" class="p-3 text-center text-gray-400 italic">Syncing transaction data...</td></tr>';
 
     $.ajax({
         type: 'POST',
         url: window.location.href,
-        data: { action_type: 'fetch_payment_history', clid: clid },
-        dataType: 'json',
-        success: function(records) {
-            var rowHtml = '';
-            records.forEach(function(r) {
-                rowHtml += `<tr><td><b>${r.or_number}</b></td><td>${r.paymentdate}</td><td style="text-align:right;"><b>₱${parseFloat(r.amtpaid).toFixed(2)}</b></td></tr>`;
-            });
-
-            var printWindow = window.open('', '_blank');
-            printWindow.document.write(`
-            <html><head><title>SOA - ${idnum}</title><style>body{font-family:Arial;margin:30px;}table{width:100%;border-collapse:collapse;}th,td{border:1px solid #000;padding:8px;}</style></head>
-            <body>
-                <div style="text-align:center;"><img src="${logoSrc}" width="70"><h2 style="margin:0;">AMANDO COPE COLLEGE</h2><p>Official Student Statement of Account</p></div>
-                <hr>
-                <p><b>Student ID:</b> ${idnum} | <b>Name:</b> ${name} | <b>Program:</b> ${program}</p>
-                <h3>Cash Remittances Log</h3>
-                <table><thead><tr><th>OR #</th><th>Date</th><th style="text-align:right;">Amount</th></tr></thead><tbody>${rowHtml}</tbody></table>
-                <div style="margin-top:20px;text-align:right;font-size:14px;">
-                    <p>Total Assessment: <b>₱${charge}</b></p><p>Total Paid: <b>₱${paid}</b></p><hr><p style="font-size:16px;color:red;">Remaining Balance: <b>₱${balance}</b></p>
-                </div>
-                <script>window.onload=function(){window.print();};<\/script>
-            </body></html>`);
-            printWindow.document.close();
+        data: { action_type: 'fetch_payment_history', csid: csid },
+        success: function(response) {
+            try { 
+                window.cachedSOAPayments = parsePollutedJson(response) || []; 
+            } catch(e) { 
+                console.error("SOA stream parser exception encountered:", e, response);
+                window.cachedSOAPayments = []; 
+            }
+            filterSOAPaymentsByTerm();
+        },
+        error: function(xhr) {
+            console.error("AJAX historical fetching error context:", xhr);
         }
     });
+
+    openModal('soaModal');
+}
+
+function filterSOAPaymentsByTerm() {
+    var selectedSY = document.getElementById('soa_filter_sy').value;
+    var selectedSem = document.getElementById('soa_filter_sem').value;
+    var assessment = parseFloat(document.getElementById('print_assessment').value) || 0;
+    
+    var html = '';
+    var calculatedPaidTotal = 0;
+    
+    var recordsToRender = window.cachedSOAPayments;
+
+    if(selectedSY !== 'ALL') {
+        recordsToRender = recordsToRender.filter(function(row) {
+            return String(row.syname).trim() === String(selectedSY).trim();
+        });
+    }
+
+    if(selectedSem !== 'ALL') {
+        recordsToRender = recordsToRender.filter(function(row) {
+            return String(row.semester).trim() === String(selectedSem).trim();
+        });
+    }
+
+    if(recordsToRender.length === 0) {
+        html = '<tr><td colspan="6" class="p-3 text-center text-gray-400 italic">No transactions posted matching selected term filters.</td></tr>';
+    } else {
+        recordsToRender.forEach(function(row) {
+            calculatedPaidTotal += row.amount;
+            html += `<tr class="border-b hover:bg-gray-50 transition duration-150">
+                <td class="p-3 font-semibold text-gray-700">${escapeHtml(row.syname)}</td>
+                <td class="p-3 text-purple-700 font-medium">${escapeHtml(row.semester)}</td>
+                <td class="p-3 font-mono font-bold text-gray-800">${escapeHtml(row.or_no)}</td>
+                <td class="p-3 text-gray-600">${escapeHtml(row.payment_date)}</td>
+                <td class="p-3"><span class="px-2 py-0.5 text-xs font-bold rounded-full bg-gray-100 text-gray-700 border">${escapeHtml(row.remarks)}</span></td>
+                <td class="p-3 text-right text-blue-600 font-bold">${row.amount.toFixed(2)} ₱</td>
+            </tr>`;
+        });
+    }
+
+    var remainingBalance = assessment - calculatedPaidTotal;
+    document.getElementById('lbl_soa_total_paid').innerText = calculatedPaidTotal.toFixed(2) + " ₱";
+    document.getElementById('lbl_soa_total_balance').innerText = remainingBalance.toFixed(2) + " ₱";
+    
+    // Safe reference updates protecting execution path against property-of-null reference errors
+    if(document.getElementById('print_paid')) { document.getElementById('print_paid').value = calculatedPaidTotal; }
+    if(document.getElementById('print_balance')) { document.getElementById('print_balance').value = remainingBalance; }
+
+    document.getElementById('soa_history_table_body').innerHTML = html;
+}
+
+function executeSOAPrint() {
+    var name = document.getElementById('print_name').value;
+    var idNum = document.getElementById('print_idnum').value;
+    var program = document.getElementById('print_program').value;
+    var level = document.getElementById('print_level').value;
+    
+    var tuition = parseFloat(document.getElementById('print_tuition').value) || 0;
+    var majors = parseInt(document.getElementById('print_majors').value) || 0;
+    var assessment = parseFloat(document.getElementById('print_assessment').value) || 0;
+    var paid = parseFloat(document.getElementById('print_paid').value) || 0;
+    var balance = parseFloat(document.getElementById('print_balance').value) || 0;
+    
+    var labFees = majors * 540;
+    var misc = 9000;
+    var logoSrc = "<?php echo $defaultPic; ?>";
+    var scopeSY = document.getElementById('soa_filter_sy').value;
+    var scopeSem = document.getElementById('soa_filter_sem').value;
+
+    var rowHtml = '';
+    $('#soa_history_table_body tr').each(function() {
+        var tds = $(this).find('td');
+        if(tds.length >= 6) {
+            rowHtml += `<tr>
+                <td>${$(tds[0]).text()}</td>
+                <td>${$(tds[1]).text()}</td>
+                <td style="font-family: monospace; font-weight: bold;">${$(tds[2]).text()}</td>
+                <td>${$(tds[3]).text()}</td>
+                <td>${$(tds[4]).text()}</td>
+                <td style="text-align: right; color:#2563eb; font-weight:bold;">${$(tds[5]).text()}</td>
+            </tr>`;
+        }
+    });
+
+    if(rowHtml === '') {
+        rowHtml = '<tr><td colspan="6" style="text-align:center; color:#9ca3af; font-style:italic;">No historical items listed beneath scope parameters.</td></tr>';
+    }
+
+    var printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>SOA Assessment Sheet Summary - ${idNum}</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 40px; color: #000; line-height: 1.4; }
+            .header-container { text-align: center; margin-bottom: 25px; position: relative; }
+            .header-container img { position: absolute; left: 0; top: 0; width: 75px; height: 75px; object-fit: contain; }
+            .header-container h2 { margin: 0; font-size: 22px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
+            .doc-title { font-weight: bold; margin-top: 15px; font-size: 16px; text-decoration: underline; text-align:center; letter-spacing:0.5px;}
+            .student-info-grid { border: 1px solid #000; padding: 12px; border-radius: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; margin-bottom: 20px; margin-top: 15px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+            th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
+            th { font-weight: bold; background-color: #f3f4f6; }
+            .summary-card { margin-top: 20px; border: 1px dashed #000; padding: 12px; font-size: 13px; width: 340px; margin-left: auto; background-color:#fafafa; }
+            .summary-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .summary-total { border-top: 1px dashed #000; padding-top: 6px; font-weight: bold; margin-top: 6px; font-size: 14px; color:#b91c1c; }
+            .footer { margin-top: 50px; display: flex; justify-content: flex-end; font-size: 13px; }
+            .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; width: 180px; display: inline-block; padding-bottom: 2px; }
+        </style>
+    </head>
+    <body>
+        <div class="header-container">
+            <img src="${logoSrc}" alt="Logo">
+            <h2>AMANDO COPE COLLEGE</h2>
+            <p>A.A Baranghawon Tabaco City</p>
+            <div class="doc-title">OFFICIAL STUDENT STATEMENT OF ACCOUNT</div>
+        </div>
+        <div class="student-info-grid">
+            <div><b>Student ID:</b> ${idNum}</div>
+            <div><b>Filter Context:</b> SY: ${scopeSY} | Sem: ${scopeSem}</div>
+            <div><b>Student Name:</b> ${name}</div>
+            <div><b>Program Component:</b> ${program}</div>
+            <div><b>Year Level:</b> ${level}</div>
+        </div>
+        
+        <h4 style="margin-bottom:0; font-size:14px; text-transform:uppercase;">Remittance Ledger Collections Log Summary</h4>
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 15%;">School Year</th>
+                    <th style="width: 15%;">Semester</th>
+                    <th style="width: 15%;">O.R. Number</th>
+                    <th style="width: 15%;">Date Posted</th>
+                    <th style="width: 25%;">Stage / Remarks</th>
+                    <th style="width: 15%; text-align: right;">Amount Paid</th>
+                </tr>
+            </thead>
+            <tbody>${rowHtml}</tbody>
+        </table>
+        
+        <div class="summary-card">
+            <div class="summary-line"><span>Catalog Tuition Base:</span><span>${tuition.toFixed(2)} ₱</span></div>
+            <div class="summary-line"><span>Miscellaneous Flat Fees:</span><span>${misc.toFixed(2)} ₱</span></div>
+            <div class="summary-line"><span>Laboratory Fees (${majors} Majors):</span><span>${labFees.toFixed(2)} ₱</span></div>
+            <div class="summary-line" style="border-top:1px solid #ccc; padding-top:4px;"><span>Gross Assessment Charge:</span><span style="font-weight:bold;">${assessment.toFixed(2)} ₱</span></div>
+            <div class="summary-line" style="color:#2563eb;"><span>Total Remitted Credit:</span><span>-${paid.toFixed(2)} ₱</span></div>
+            <div class="summary-line summary-total"><span>Net Outstanding Balance:</span><span>${balance.toFixed(2)} ₱</span></div>
+        </div>
+        <div class="footer"><div><p>Issued by:</p><div class="signature-line">ACC CASHIER OFFICE</div></div></div>
+        <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
+    </body>
+    </html>`);
+    printWindow.document.close();
+}
+
+function escapeHtml(string) {
+    return String(string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function openModal(id) { document.getElementById(id).classList.add('active'); }
 function closeModal(id) { document.getElementById(id).classList.remove('active'); }
-$(document).ready(function() { $('#dataTables-ledger').DataTable({ "responsive": true, "pageLength": 10 }); });
+
+window.onclick = function(event) {
+    if (event.target.classList.contains('modal-overlay')) {
+        event.target.classList.remove('active');
+    }
+}
+
+$(document).ready(function() {
+    var table = $('#dataTables-example').DataTable({
+        "responsive": true,
+        "pageLength": 10,
+        "lengthMenu": [[10, 25, 50, -1], [10, 25, 50, "All"]],
+        "language": { "search": "Search Account: ", "searchPlaceholder": "Filter..." }
+    });
+
+    $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
+        if (settings.nTable.id !== 'dataTables-example') return true; 
+        var pSel = $('#filterProgram').val() || '';
+        var lSel = $('#filterLevel').val() || '';
+        if (pSel !== '' && (data[2] || '').trim() !== pSel.trim()) return false;
+        if (lSel !== '' && (data[3] || '').trim() !== lSel.trim()) return false;
+        return true; 
+    });
+
+    $('#filterProgram, #filterLevel').on('change', function() { table.draw(); });
+});
 </script>

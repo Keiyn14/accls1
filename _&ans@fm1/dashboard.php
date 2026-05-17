@@ -1,42 +1,33 @@
 <?php 
 // Fetch all required data at the top to avoid undefined variable errors
-//get the current or active school year
-$str="Select syid, syname,status from sy where status='Active'";
-$res=$dbcon->query($str);
-$data=$res->fetch_assoc();
-$sy=$data['syname'] ?? 'None Active';
-$syid=$data['syid'] ?? 0;
+// Get the current or active school year
+$str = "SELECT syid, syname, status FROM sy WHERE status='Active'";
+$res = $dbcon->query($str);
+$data = $res->fetch_assoc();
+$sy = $data['syname'] ?? 'None Active';
+$syid = $data['syid'] ?? 0;
 
-//get the current semester
-$strCS="SELECT sid, semester, status FROM sem where status='Active'";
-$resCS=$dbcon->query($strCS);
-$csData=$resCS->fetch_assoc();
-$sid=$csData['sid'] ?? 0;
-$sem=$csData['semester'] ?? 'None Active';
+// Get the current semester
+$strCS = "SELECT sid, semester, status FROM sem WHERE status='Active'";
+$resCS = $dbcon->query($strCS);
+$csData = $resCS->fetch_assoc();
+$sid = $csData['sid'] ?? 0;
+$sem = $csData['semester'] ?? 'None Active';
 
-// --- 🎯 BULLETPROOF COLLEGE COUNTER ENGINE ---
-// Try counting with active term filter first
-$strCol="SELECT count(csid) as college FROM students WHERE did=1";
-$colRes=$dbcon->query($strCol);
-$colData=$colRes->fetch_assoc();
-$college=intval($colData['college'] ?? 0);
-
-// Fallback: If 0 but students exist globally, drop term constraint to show current directory strength
-if($college === 0) {
-    $strColFallback="SELECT count(csid) as college FROM students WHERE did=1";
-    $colResFallback=$dbcon->query($strColFallback);
-    $colDataFallback=$colResFallback->fetch_assoc();
-    $college=intval($colDataFallback['college'] ?? 0);
-}
+// --- 🎯 COLLEGE COUNTER ENGINE ---
+$strCol = "SELECT count(csid) as college FROM students WHERE did=1";
+$colRes = $dbcon->query($strCol);
+$colData = $colRes->fetch_assoc();
+$college = intval($colData['college'] ?? 0);
 
 // College Programs Count
-$strCP="SELECT count(did) as colprog FROM offerings where did=1";
-$cpRes=$dbcon->query($strCP);
-$cpData=$cpRes->fetch_assoc();
-$cProg=$cpData['colprog'];
+$strCP = "SELECT count(did) as colprog FROM offerings WHERE did=1";
+$cpRes = $dbcon->query($strCP);
+$cpData = $cpRes->fetch_assoc();
+$cProg = $cpData['colprog'];
 
-// Total College Payments Collected Overall
-$totalColPaymentsQ = "SELECT SUM(l.tfee) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE l.syid=$syid AND l.sid=$sid AND s.did=1";
+// Total College Payments Collected Overall (Sourced using l.amount and s.syid/s.sid)
+$totalColPaymentsQ = "SELECT SUM(l.amount) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.syid=$syid AND s.sid=$sid AND s.did=1";
 $tcpRes = $dbcon->query($totalColPaymentsQ);
 $tcpData = $tcpRes->fetch_assoc();
 $total_collection = floatval($tcpData['total_paid'] ?? 0.00);
@@ -56,15 +47,13 @@ while($cRow = $colQRes->fetch_assoc()){
     $cid = $cRow['cid'];
     $chartLabels[] = $cRow['program'];
     
-    // 🎯 SIMPLIFIED ENROLLMENT COUNTER
-    // Count ALL students in this specific program (cid) regardless of term
+    // Count ALL students in this specific program (cid)
     $eRes = $dbcon->query("SELECT COUNT(csid) as total FROM students WHERE cid=$cid");
     $eData = $eRes->fetch_assoc();
     $chartEnrolled[] = intval($eData['total'] ?? 0);
     
-    // 🎯 SIMPLIFIED PAYMENTS CALCULATOR
-    // Sum ALL payments for this specific program regardless of term
-    $pRes = $dbcon->query("SELECT SUM(l.tfee) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.cid=$cid");
+    // Payments Calculator (Sourced securely via l.amount field attribute)
+    $pRes = $dbcon->query("SELECT SUM(l.amount) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.cid=$cid");
     $pData = $pRes->fetch_assoc();
     $chartPayments[] = floatval($pData['total_paid'] ?? 0.00);
 }

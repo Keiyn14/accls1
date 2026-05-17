@@ -1,3 +1,110 @@
+<?php 
+// =========================================================================
+// 🚀 AJAX ENGINE HANDLING BLOCKS (KEEPS SESSION ROUTING PARAMS ACTIVE)
+// =========================================================================
+if(isset($_POST['action_type'])){
+    // 🧼 BUFFER PURGE: Clear out any pre-rendered template buffers if present
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+
+    if($_POST['action_type'] == "fetch_catalog_subjects"){
+        $cid = intval($_POST['cid']);
+        $output = [];
+        $res = $dbcon->query("SELECT subject_code, subject_title, units, price FROM subjects WHERE cid = $cid ORDER BY subject_code ASC");
+        if($res){
+            while($r = $res->fetch_assoc()){
+                $output[] = [
+                    'subject_code'  => $r['subject_code'],
+                    'subject_title' => $r['subject_title'],
+                    'units'         => intval($r['units']),
+                    'price'         => floatval($r['price'])
+                ];
+            }
+        }
+        echo json_encode($output);
+        exit();
+    }
+
+    if($_POST['action_type'] == "add_subject"){
+        $csid = intval($_POST['subject_csid']);
+        $subCode = $dbcon->real_escape_string(trim($_POST['subject_code']));
+        
+        // 1. Locate student program identifier (cid) context securely
+        $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
+        $studentData = $studentQry->fetch_assoc();
+        $cid = intval($studentData['cid'] ?? 0);
+        
+        // 2. Query pristine master properties directly from your catalog table row
+        $catalogQry = $dbcon->query("SELECT subject_title, units, price FROM subjects WHERE subject_code = '$subCode' AND cid = $cid LIMIT 1");
+        
+        if($catalogQry && $catalogQry->num_rows > 0) {
+            $catalog = $catalogQry->fetch_assoc();
+            $subDesc = $dbcon->real_escape_string($catalog['subject_title']);
+            $subUnits = intval($catalog['units']);
+            $subPrice = floatval($catalog['price']);
+            
+            $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
+                ssid INT AUTO_INCREMENT PRIMARY KEY,
+                csid INT NOT NULL,
+                subject_code VARCHAR(50) NOT NULL,
+                subject_description VARCHAR(255) NOT NULL,
+                units INT NOT NULL,
+                price DECIMAL(10,2) NOT NULL DEFAULT 0.00
+            )");
+            
+            $query = "INSERT INTO student_subjects (csid, subject_code, subject_description, units, price) 
+                      VALUES ($csid, '$subCode', '$subDesc', $subUnits, $subPrice)";
+                      
+            if($dbcon->query($query)){
+                echo json_encode(["status" => "success"]);
+            } else {
+                echo json_encode(["status" => "error", "message" => $dbcon->error]);
+            }
+        } else {
+            echo json_encode(["status" => "error", "message" => "Target subject variant row not registered inside master catalog table reference."]);
+        }
+        exit(); 
+    }
+
+    if($_POST['action_type'] == "fetch_subjects"){
+        $csid = intval($_POST['subject_csid']);
+        $output = [];
+        
+        $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
+            ssid INT AUTO_INCREMENT PRIMARY KEY,
+            csid INT NOT NULL,
+            subject_code VARCHAR(50) NOT NULL,
+            subject_description VARCHAR(255) NOT NULL,
+            units INT NOT NULL,
+            price DECIMAL(10,2) NOT NULL DEFAULT 0.00
+        )");
+
+        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid ORDER BY ssid DESC");
+        if($res){
+            while($r = $res->fetch_assoc()){
+                $output[] = [
+                    'ssid'          => $r['ssid'],
+                    'subject_code'  => $r['subject_code'],
+                    'subject_title' => $r['subject_description'], 
+                    'units'         => $r['units'],
+                    'price'         => $r['price']
+                ];
+            }
+        }
+        echo json_encode($output);
+        exit();
+    }
+
+    if($_POST['action_type'] == "remove_subject"){
+        $ssid = intval($_POST['ssid']);
+        $dbcon->query("DELETE FROM student_subjects WHERE ssid = $ssid");
+        echo json_encode(["status" => "success"]);
+        exit();
+    }
+}
+?>
+
 <style>
     /* Synchronized Global Modal Styles */
     .modal-overlay {
@@ -16,8 +123,8 @@
         display: flex;
     }
     .modal-overlay .modal-dialog {
-        max-width: 800px;
-        width: min(95%, 800px);
+        max-width: 850px;
+        width: min(95%, 850px);
         margin: auto;
     }
     .modal-dialog-sm {
@@ -68,7 +175,7 @@
         font-weight: 500;
     }
 
-    /* --- 🚀 FIXED PAGINATION DESIGN ENGINE --- */
+    /* --- FIXED PAGINATION DESIGN ENGINE --- */
     .dataTables_wrapper .dataTables_paginate {
         float: right;
         margin-top: 1rem;
@@ -146,24 +253,18 @@
 
 <br />
 <?php 
-    // =========================================================================
-    // --- DIRECTORY PATH CONFIGURATION (LOCKED INSTANCE VALUES) ---
-    // =========================================================================
-    $uploadDir = "uploads/";        
+    // --- APP CORE SYSTEM VARIABLES ---
     $defaultPic = "../assets/logo.png";   
-    // =========================================================================
-
-    //1->College
-    $dept='1';
+    $dept = '1';
     
-    //get the current or active school year
+    // Get active school year
     $str="Select syid, syname,status from sy where status='Active'";
     $res=$dbcon->query($str);
     $data=$res->fetch_assoc();
     $s = $data['syname'] ?? '';
     $csyid = $data['syid'] ?? 0;
     
-    //get the current semester
+    // Get active semester
     $strCS="SELECT sid, semester, status FROM sem where status='Active'";
     $resCS=$dbcon->query($strCS);
     $csData=$resCS->fetch_assoc();
@@ -176,10 +277,6 @@
     $statusMsg = "";
     $msgClass = "";
     $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOTES, 'UTF-8');
-
-    if (!is_dir($uploadDir)) {
-        mkdir($uploadDir, 0777, true);
-    }
 
     // Add Learner
     if(isset($_POST['btnAdd'])){
@@ -198,16 +295,9 @@
         $guardian = $dbcon->real_escape_string($_POST['guardian']);
         $mobile = $dbcon->real_escape_string($_POST['mobile']);
         $address = $dbcon->real_escape_string($_POST['address']);
-        
-        $picName = "";
-        if(isset($_FILES['pic']) && $_FILES['pic']['error'] == 0){
-            $picName = time() . '_' . preg_replace("/[^a-zA-Z0-9.]/", "", $_FILES['pic']['name']);
-            move_uploaded_file($_FILES['pic']['tmp_name'], $uploadDir . $picName);
-        }
 
-        // 🚀 Updated Insert Query
         $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
-                      VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', '$email', '$smobile', $cid, $gid, $did, $syid, $sid, '$guardian', '$mobile', '$address', '$picName')";
+                      VALUES ('$studentid', '$fname', '$mname', '$lname', '$gender', '$email', '$smobile', $cid, $gid, $did, $syid, $sid, '$guardian', '$mobile', '$address', '')";
         
         if($dbcon->query($strInsert)){
             echo "<script>window.location.replace(window.location.href);</script>";
@@ -249,142 +339,70 @@
         }
     }
 
-if(isset($_POST['btnImportCSV'])){
-    if(isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] == 0){
-        $filename = $_FILES['csv_file']['tmp_name'];
-        
-        if (($handle = fopen($filename, "r")) !== FALSE) {
-            fgetcsv($handle, 1000, ","); // Skip header
+    // Import CSV Block
+    if(isset($_POST['btnImportCSV'])){
+        if(isset($_FILES['csv_file']) && $_FILES['csv_file']['error'] == 0){
+            $filename = $_FILES['csv_file']['tmp_name'];
             
-            $insertedCount = 0;
-            $updatedCount = 0;
-            $debugLogs = [];
-            $csvLineNum = 1;
-            
-            while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
-                $csvLineNum++;
-                if (empty(array_filter($data))) continue;
+            if (($handle = fopen($filename, "r")) !== FALSE) {
+                fgetcsv($handle, 1000, ","); 
+                $insertedCount = 0;
+                $updatedCount = 0;
                 
-                // Pad data array to guarantee 15 elements match your new CSV layout
-                $data = array_pad($data, 15, '');
-                
-                $studentid = trim($data[0]);
-                $fname     = trim($data[1]);
-                $mname     = trim($data[2]);
-                $lname     = trim($data[3]);
-                $gender    = trim($data[4]);
-                
-                // 5 IDs extracted cleanly directly from file inputs
-                $cid       = intval(trim($data[5])); 
-                $gid       = intval(trim($data[6])); 
-                $did       = intval(trim($data[7])); 
-                $syid      = intval(trim($data[8])); 
-                $sid       = intval(trim($data[9])); 
-                
-                $guardian  = trim($data[10]);
-                $mobile    = trim($data[11]);
-                $address   = trim($data[12]);
-                $email     = trim($data[13]);
-                $smobile   = trim($data[14]);
-                $picName   = ""; 
+                while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
+                    if (empty(array_filter($data))) continue;
+                    $data = array_pad($data, 15, '');
+                    
+                    $studentid = trim($data[0]);
+                    $fname     = trim($data[1]);
+                    $mname     = trim($data[2]);
+                    $lname     = trim($data[3]);
+                    $gender    = trim($data[4]);
+                    $cid       = intval(trim($data[5])); 
+                    $gid       = intval(trim($data[6])); 
+                    $did       = intval(trim($data[7])); 
+                    $syid      = intval(trim($data[8])); 
+                    $sid       = intval(trim($data[9])); 
+                    $guardian  = trim($data[10]);
+                    $mobile    = trim($data[11]);
+                    $address   = trim($data[12]);
+                    $email     = trim($data[13]);
+                    $smobile   = trim($data[14]);
 
-                if(empty($studentid) || empty($lname) || empty($fname)){
-                    continue;
-                }
+                    if(empty($studentid) || empty($lname) || empty($fname)) continue;
 
-                $db_studentid = $dbcon->real_escape_string($studentid);
-                $db_fname     = $dbcon->real_escape_string($fname);
-                $db_mname     = $dbcon->real_escape_string($mname);
-                $db_lname     = $dbcon->real_escape_string($lname);
-                $db_gender    = $dbcon->real_escape_string($gender);
-                $db_guardian  = $dbcon->real_escape_string($guardian);
-                $db_mobile    = $dbcon->real_escape_string($mobile);
-                $db_address   = $dbcon->real_escape_string($address);
-                $db_email     = $dbcon->real_escape_string($email);
-                $db_smobile   = $dbcon->real_escape_string($smobile);
+                    $db_studentid = $dbcon->real_escape_string($studentid);
+                    $db_fname     = $dbcon->real_escape_string($fname);
+                    $db_mname     = $dbcon->real_escape_string($mname);
+                    $db_lname     = $dbcon->real_escape_string($lname);
+                    $db_gender    = $dbcon->real_escape_string($gender);
+                    $db_guardian  = $dbcon->real_escape_string($guardian);
+                    $db_mobile    = $dbcon->real_escape_string($mobile);
+                    $db_address   = $dbcon->real_escape_string($address);
+                    $db_email     = $dbcon->real_escape_string($email);
+                    $db_smobile   = $dbcon->real_escape_string($smobile);
 
-                $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
-                              VALUES ('$db_studentid', '$db_fname', '$db_mname', '$db_lname', '$db_gender', '$db_email', '$db_smobile', $cid, $gid, $did, $syid, $sid, '$db_guardian', '$db_mobile', '$db_address', '$picName')
-                              ON DUPLICATE KEY UPDATE 
-                              fname    = '$db_fname', 
-                              mname    = '$db_mname', 
-                              lname    = '$db_lname', 
-                              gender   = '$db_gender', 
-                              email    = '$db_email', 
-                              smobile  = '$db_smobile', 
-                              cid      = $cid, 
-                              gid      = $gid, 
-                              did      = $did, 
-                              syid     = $syid, 
-                              sid      = $sid, 
-                              guardian = '$db_guardian', 
-                              mobile   = '$db_mobile', 
-                              address  = '$db_address'";
-                
-                if($dbcon->query($strInsert)){
-                    if($dbcon->affected_rows == 2) {
-                        $updatedCount++;
-                    } else {
-                        $insertedCount++;
+                    $strInsert = "INSERT INTO students (studentid, fname, mname, lname, gender, email, smobile, cid, gid, did, syid, sid, guardian, mobile, address, pict) 
+                                  VALUES ('$db_studentid', '$db_fname', '$db_mname', '$db_lname', '$db_gender', '$db_email', '$db_smobile', $cid, $gid, $did, $syid, $sid, '$db_guardian', '$db_mobile', '$db_address', '')
+                                  ON DUPLICATE KEY UPDATE 
+                                  fname='$db_fname', mname='$db_mname', lname='$db_lname', gender='$db_gender', email='$db_email', smobile='$db_smobile', cid=$cid, gid=$gid, did=$did, syid=$syid, sid=$sid, guardian='$db_guardian', mobile='$db_mobile', address='$db_address'";
+                    
+                    if($dbcon->query($strInsert)){
+                        if($dbcon->affected_rows == 2) { $updatedCount++; } else { $insertedCount++; }
                     }
-                } else {
-                    $debugLogs[] = "Line {$csvLineNum} Error: " . $dbcon->error;
                 }
-            }
-            fclose($handle);
-            
-            $statusMsg = "Import Complete: Added {$insertedCount} records, updated {$updatedCount} records.";
-            $msgClass = "border-green-500 bg-green-50 text-green-700 font-medium";
-        }
-    }
-}
-
-    // --- SUBJECT MANAGEMENT ACTIONS ---
-    if(isset($_POST['action_type']) && $_POST['action_type'] == "add_subject"){
-        $csid = intval($_POST['subject_csid']);
-        $subCode = $dbcon->real_escape_string(trim($_POST['subject_code']));
-        $subDesc = $dbcon->real_escape_string(trim($_POST['subject_title']));
-        $subUnits = intval($_POST['subject_units']);
-        
-        $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
-            ssid INT AUTO_INCREMENT PRIMARY KEY,
-            csid INT,
-            subject_code VARCHAR(50),
-            subject_title VARCHAR(255),
-            units INT
-        )");
-        
-        $dbcon->query("INSERT INTO student_subjects (csid, subject_code, subject_title, units) VALUES ($csid, '$subCode', '$subDesc', $subUnits)");
-        echo json_encode(["status" => "success"]);
-        exit();
-    }
-
-    if(isset($_POST['action_type']) && $_POST['action_type'] == "fetch_subjects"){
-        $csid = intval($_POST['subject_csid']);
-        $output = [];
-        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid ORDER BY ssid DESC");
-        if($res){
-            while($r = $res->fetch_assoc()){
-                $output[] = $r;
+                fclose($handle);
+                $statusMsg = "Import Complete: Added {$insertedCount} records, updated {$updatedCount} records.";
+                $msgClass = "border-green-500 bg-green-50 text-green-700 font-medium";
             }
         }
-        echo json_encode($output);
-        exit();
     }
 
-    if(isset($_POST['action_type']) && $_POST['action_type'] == "remove_subject"){
-        $ssid = intval($_POST['ssid']);
-        $dbcon->query("DELETE FROM student_subjects WHERE ssid = $ssid");
-        echo json_encode(["status" => "success"]);
-        exit();
-    }
-
-    // --- CLEAN BULK ACTION DELETE BLOCK (NO ADMIN PASSWORD SECURITY) ---
+    // Bulk Delete Block
     if(isset($_POST['btnDelete'])){
         if(!empty($_POST['delete_ids'])) {
             $id_array = array_map('intval', explode(',', $_POST['delete_ids']));
             $ids_string = implode(',', $id_array);
-            
             if(!empty($ids_string)){
                 $dbcon->query("DELETE FROM students WHERE csid IN ($ids_string)");
                 echo "<script>window.location.replace(window.location.href);</script>";
@@ -508,6 +526,7 @@ if(isset($_POST['btnImportCSV'])){
                                     <button type="button" class="flex-1 px-3 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2"
                                             onclick="triggerSubjectModal(this)"
                                             data-csid="<?php echo htmlspecialchars($row['csid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>" 
+                                            data-cid="<?php echo htmlspecialchars($row['cid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
                                             data-studentid="<?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-program="<?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
@@ -537,8 +556,7 @@ if(isset($_POST['btnImportCSV'])){
                 </div>
                 <div class="modal-body p-6">
                     <div class="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-200">
-                        <strong>Important:</strong> Your CSV file must have these columns in exact order: 
-                        <br><i>Student ID, First Name, Middle Name, Last Name, Gender, Program ID, Year Level ID, Department ID, Guardian, Guardian Mobile, Address, Student Email, Student Mobile.</i>
+                        <strong>Important:</strong> CSV layout structure required matches precisely columns defined.
                     </div>
                     <div>
                         <label class="block text-gray-700 font-semibold mb-1 text-sm">Upload CSV File *</label>
@@ -557,7 +575,7 @@ if(isset($_POST['btnImportCSV'])){
 <div class="modal-overlay print-hide" id="formModal" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form role="form" method="post" action="<?php echo $formActionUrl; ?>" enctype="multipart/form-data">
+            <form role="form" method="post" action="<?php echo $formActionUrl; ?>">
                 <div class="bg-gradient-to-r from-green-700 to-green-600 px-6 py-4 flex justify-between items-center">
                     <h4 class="text-lg font-bold text-white">Add College Learner</h4>
                     <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('formModal')">&times;</button>
@@ -568,7 +586,7 @@ if(isset($_POST['btnImportCSV'])){
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Gender *</label><select name="gender" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><option value="Male">Male</option><option value="Female">Female</option></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">First Name *</label><input type="text" name="fname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Middle Name</label><input type="text" name="mname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
-                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Last Name *</label><input type="text" name="lname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
+                        <div class="md:col-span-2"><label class="block text-gray-700 font-semibold mb-1 text-sm">Last Name *</label><input type="text" name="lname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Program *</label><select name="cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $oRes=$dbcon->query("SELECT cid, program FROM offerings"); while($o=$oRes->fetch_assoc()) echo "<option value='".$o['cid']."'>".htmlspecialchars($o['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
@@ -580,9 +598,9 @@ if(isset($_POST['btnImportCSV'])){
                             <label class="block text-gray-700 font-semibold mb-1 text-sm">School Year *</label>
                             <select name="syid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
                                 <?php 
-                                $syRes=$dbcon->query("SELECT syid, syname, status FROM sy ORDER BY syid DESC");
+                                $syRes=$dbcon->query("SELECT syid, syname FROM sy ORDER BY syid DESC");
                                 while($sy=$syRes->fetch_assoc()) {
-                                    $selected = ($sy['syid'] == $csyid) ? 'selected' : ''; // Defaults to Active SY
+                                    $selected = ($sy['syid'] == $csyid) ? 'selected' : '';
                                     echo "<option value='".$sy['syid']."' $selected>".htmlspecialchars($sy['syname'], ENT_QUOTES, 'UTF-8')."</option>";
                                 }
                                 ?>
@@ -594,7 +612,7 @@ if(isset($_POST['btnImportCSV'])){
                                 <?php 
                                 $stRes=$dbcon->query("SELECT sid, remark FROM status");
                                 while($st=$stRes->fetch_assoc()) {
-                                    $selected = ($st['sid'] == 1) ? 'selected' : ''; // Defaults to current Status
+                                    $selected = ($st['sid'] == 1) ? 'selected' : '';
                                     echo "<option value='".$st['sid']."' $selected>".htmlspecialchars($st['remark'], ENT_QUOTES, 'UTF-8')."</option>";
                                 }
                                 ?>
@@ -639,7 +657,7 @@ if(isset($_POST['btnImportCSV'])){
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Gender</label><select name="ugender" id="edit_gender" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><option value="Male">Male</option><option value="Female">Female</option></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">First Name</label><input type="text" name="ufname" id="edit_fname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Middle Name</label><input type="text" name="umname" id="edit_mname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
-                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Last Name</label><input type="text" name="ulname" id="edit_lname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
+                        <div class="md:col-span-2"><label class="block text-gray-700 font-semibold mb-1 text-sm">Last Name</label><input type="text" name="ulname" id="edit_lname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Program</label><select name="ucid" id="edit_cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $oRes=$dbcon->query("SELECT cid, program FROM offerings"); while($o=$oRes->fetch_assoc()) echo "<option value='".$o['cid']."'>".htmlspecialchars($o['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
@@ -693,28 +711,6 @@ if(isset($_POST['btnImportCSV'])){
     </div>
 </div>
 
-<div class="modal-overlay print-hide" id="picStudentModal" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-sm">
-        <div class="modal-content">
-            <form role="form" method="post" action="<?php echo $formActionUrl; ?>" enctype="multipart/form-data">
-                <div class="bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-4 flex justify-between items-center">
-                    <h4 class="text-lg font-bold text-white">Change Picture</h4>
-                    <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('picStudentModal')">&times;</button>
-                </div>
-                <div class="modal-body p-6 text-center">
-                    <input type="hidden" name="pcsid" id="pic_csid" value="">
-                    <p class="text-gray-700 mb-4 font-semibold text-lg" id="pic_student_name"></p>
-                    <div class="mb-4"><input type="file" name="newpic" accept="image/*" class="w-full px-4 py-3 border-2 border-dashed border-emerald-300 rounded-lg cursor-pointer" required></div>
-                </div>
-                <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg">
-                    <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded" onclick="closeModal('picStudentModal')">Cancel</button>
-                    <button type="submit" name="btnUpdatePic" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded">Upload</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
 <div class="modal-overlay print-hide" id="subjectModal" aria-hidden="true">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -735,34 +731,47 @@ if(isset($_POST['btnImportCSV'])){
                     <input type="hidden" name="action_type" value="add_subject">
                     <div class="md:col-span-3">
                         <label class="block text-gray-600 text-xs font-semibold mb-1">Subject Code</label>
-                        <input type="text" id="subject_code" name="subject_code" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="e.g. CC101" required>
+                        <select id="subject_code" name="subject_code" onchange="handleSubjectSelectionChange()" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 bg-white" required>
+                            <option value="">-- Select --</option>
+                        </select>
                     </div>
                     <div class="md:col-span-6">
                         <label class="block text-gray-600 text-xs font-semibold mb-1">Subject Title / Description</label>
-                        <input type="text" id="subject_title" name="subject_title" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" placeholder="e.g. Introduction to Computing" required>
+                        <input type="text" id="subject_title" name="subject_title" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed" readonly required>
                     </div>
                     <div class="md:col-span-2">
                         <label class="block text-gray-600 text-xs font-semibold mb-1">Units</label>
-                        <input type="number" id="subject_units" name="subject_units" min="1" max="6" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500" value="3" required>
+                        <input type="number" id="subject_units" name="subject_units" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed" readonly required>
                     </div>
                     <div class="md:col-span-1 flex items-end">
                         <button type="submit" class="w-full py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded text-sm shadow shadow-purple-200 transition">Add</button>
                     </div>
                 </form>
 
-                <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-[260px] overflow-y-auto bg-white">
+                <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-[260px] overflow-y-auto bg-white mb-4">
                     <table class="w-full text-left text-sm">
                         <thead class="bg-gray-100 text-gray-700 border-b font-semibold">
                             <tr>
                                 <th class="p-3">Subject Code</th>
                                 <th class="p-3">Title Description</th>
                                 <th class="p-3 w-20 text-center">Units</th>
+                                <th class="p-3 w-28 text-right">Price</th>
                                 <th class="p-3 w-16 text-center">Action</th>
                             </tr>
                         </thead>
                         <tbody id="subjects_table_body" class="divide-y text-gray-800">
                         </tbody>
                     </table>
+                </div>
+
+                <div class="bg-gray-50 border border-gray-200 rounded-xl p-4 text-sm text-gray-800 font-medium">
+                    <h5 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 border-b pb-1">Assessment Sheet summary of fees</h5>
+                    <div class="space-y-1.5">
+                        <div class="flex justify-between"><span>Tuition fee:</span><span id="fee_tuition" class="font-semibold text-gray-900">0.00 PHP</span></div>
+                        <div class="flex justify-between"><span>Miscellanous fees:</span><span id="fee_misc" class="font-semibold text-gray-900">9,000.00 PHP</span></div>
+                        <div class="flex justify-between"><span>Laboratory fees (<span id="major_count">0</span> Major Subjects):</span><span id="fee_lab" class="font-semibold text-gray-900">0.00 PHP</span></div>
+                        <div class="flex justify-between border-t pt-2 text-base font-bold text-green-700"><span>Total Term Bill:</span><span id="fee_total">9,000.00 PHP</span></div>
+                    </div>
                 </div>
             </div>
             <div class="modal-footer bg-gray-50 flex justify-between items-center rounded-b-lg">
@@ -785,7 +794,7 @@ if(isset($_POST['btnImportCSV'])){
                 </div>
                 <div class="modal-body p-6">
                     <input type="hidden" name="delete_ids" id="delete_ids" value="">
-                    <p class="text-gray-800 font-medium">Are you sure you want to drop the selected student records? This action is permanent and cannot be undone.</p>
+                    <p class="text-gray-800 font-medium">Are you sure you want to drop the selected student records? This action cannot be undone.</p>
                 </div>
                 <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg">
                     <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded" onclick="closeModal('deleteStudentModal')">Cancel</button>
@@ -796,13 +805,35 @@ if(isset($_POST['btnImportCSV'])){
     </div>
 </div>
 
-<script src="../../assets/plugins/jquery-2.0.3.min.js"></script>
-<script src="../../assets/plugins/bootstrap/js/bootstrap.min.js"></script>
-<script src="../../assets/plugins/modernizr-2.6.2-respond-1.1.0.min.js"></script>
-<script src="../../assets/plugins/dataTables/jquery.dataTables.js"></script>
-<script src="../../assets/plugins/dataTables/dataTables.bootstrap.js"></script>
-
 <script>
+// 🚀 BACKWARDS SCANNED DATA STRUCT EXTRACTION ENGINE: Immunizes responses against layouts and warnings
+function parsePollutedJson(response) {
+    if (typeof response !== 'string') return response;
+    
+    var cleanStr = response.trim();
+    var lastObj = cleanStr.lastIndexOf('}');
+    var lastArr = cleanStr.lastIndexOf(']');
+    var end = Math.max(lastObj, lastArr);
+    
+    if (end === -1) {
+        throw new Error("No closing JSON structure token detected inside response stream.");
+    }
+    
+    var startToken = -1;
+    if (cleanStr.charAt(end) === '}') {
+        startToken = cleanStr.lastIndexOf('{', end);
+    } else if (cleanStr.charAt(end) === ']') {
+        startToken = cleanStr.lastIndexOf('[', end);
+    }
+    
+    if (startToken === -1) {
+        throw new Error("No matching open boundary brace found.");
+    }
+    
+    var targetJson = cleanStr.substring(startToken, end + 1);
+    return JSON.parse(targetJson);
+}
+
 function smartPrint() {
     if ($.fn.DataTable.isDataTable('#dataTables-example')) {
         var table = $('#dataTables-example').DataTable();
@@ -817,7 +848,6 @@ function smartPrint() {
         var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
 
         var printWindow = window.open('', '_blank');
-
         var html = `
         <!DOCTYPE html>
         <html>
@@ -830,17 +860,12 @@ function smartPrint() {
                 .header-container h2 { margin: 0; font-size: 24px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
                 .header-container p { margin: 5px 0 0 0; font-size: 14px; }
                 .header-container .doc-title { font-weight: bold; margin-top: 20px; font-size: 16px; text-decoration: underline; }
-                .header-container .dept-title { font-weight: bold; font-size: 16px; margin-top: 5px; }
-                .info-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-bottom: 10px; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
                 th, td { border: 1px solid #000; padding: 10px 8px; text-align: left; font-size: 14px; }
                 th { font-weight: bold; background-color: #f8f9fa; }
                 th:first-child, td:first-child, th:last-child, td:last-child { display: none !important; }
                 .footer { margin-top: 50px; display: flex; justify-content: flex-end; }
-                .signature-box { text-align: left; }
-                .signature-box p { margin: 0 0 30px 0; font-size: 14px; }
                 .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; min-width: 150px; display: inline-block; padding-bottom: 2px;}
-                @media print { @page { margin: 0.5in; } body { margin: 0; } }
             </style>
         </head>
         <body>
@@ -849,15 +874,13 @@ function smartPrint() {
                 <h2>AMANDO COPE COLLEGE</h2>
                 <p>A.A Baranghawon Tabaco City</p>
                 <div class="doc-title">ENROLLED STUDENTS DIRECTORY</div>
-                <div class="dept-title">COLLEGE DEPARTMENT</div>
             </div>
             <div class="info-row"><span>Semester: ${sem}</span><span>School Year: ${sy}</span></div>
             ${tableHTML}
-            <div class="footer"><div class="signature-box"><p>Prepared by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
+            <div class="footer"><div><p>Prepared by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
             <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<\/script>
         </body>
-        </html>
-        `;
+        </html>`;
 
         printWindow.document.open();
         printWindow.document.write(html);
@@ -867,38 +890,116 @@ function smartPrint() {
     }
 }
 
+// Global reference storage for active course-catalog entries
+var activeCatalogSubjects = [];
+
 function triggerSubjectModal(btn) {
     var csid = btn.getAttribute('data-csid') || '';
+    var cid = btn.getAttribute('data-cid') || '';
+    
     document.getElementById('subject_csid').value = csid;
     document.getElementById('sub_student_name').innerText = btn.getAttribute('data-name') || '';
     document.getElementById('sub_student_id').innerText = btn.getAttribute('data-studentid') || '';
     document.getElementById('sub_program').innerText = btn.getAttribute('data-program') || '';
     document.getElementById('sub_glevel').innerText = btn.getAttribute('data-glevel') || '';
     
-    document.getElementById('subject_code').value = '';
     document.getElementById('subject_title').value = '';
-    document.getElementById('subject_units').value = '3';
+    document.getElementById('subject_units').value = '';
+    
+    // Clear out dropdown selector items first
+    document.getElementById('subject_code').innerHTML = '<option value="">Loading...</option>';
+    
+    // Fire catalog sync routine
+    loadCatalogSubjectsDropdown(cid);
     
     fetchSubjectLoadList(csid);
     openModal('subjectModal');
 }
 
-function fetchSubjectLoadList(csid) {
+function loadCatalogSubjectsDropdown(cid) {
     $.ajax({
         type: 'POST',
         url: window.location.href,
+        data: { action_type: 'fetch_catalog_subjects', cid: cid },
+        success: function(response) {
+            try {
+                activeCatalogSubjects = parsePollutedJson(response);
+            } catch(e) {
+                console.error("Failed to parse course offerings array:", e);
+                activeCatalogSubjects = [];
+            }
+            
+            var html = '<option value="">-- Select Code --</option>';
+            activeCatalogSubjects.forEach(function(sub) {
+                html += `<option value="${escapeHtml(sub.subject_code)}">${escapeHtml(sub.subject_code)}</option>`;
+            });
+            document.getElementById('subject_code').innerHTML = html;
+        }
+    });
+}
+
+function handleSubjectSelectionChange() {
+    var codeValue = document.getElementById('subject_code').value;
+    var titleInput = document.getElementById('subject_title');
+    var unitsInput = document.getElementById('subject_units');
+    
+    if(!codeValue) {
+        titleInput.value = '';
+        unitsInput.value = '';
+        return;
+    }
+    
+    var matchedItem = activeCatalogSubjects.find(function(sub) {
+        return sub.subject_code === codeValue;
+    });
+    
+    if(matchedItem) {
+        titleInput.value = matchedItem.subject_title;
+        unitsInput.value = matchedItem.units;
+    } else {
+        titleInput.value = '';
+        unitsInput.value = '';
+    }
+}
+
+function fetchSubjectLoadList(csid) {
+    $.ajax({
+        type: 'POST',
+        url: window.location.href, 
         data: { action_type: 'fetch_subjects', subject_csid: csid },
-        dataType: 'json',
-        success: function(data) {
+        success: function(response) {
+            var data;
+            try {
+                data = parsePollutedJson(response);
+            } catch(e) {
+                console.error("JSON Clean Extraction Crash:", e, response);
+                document.getElementById('subjects_table_body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500 italic">Failed to format response stream payload.</td></tr>';
+                return;
+            }
+
             var html = '';
-            if(data.length === 0) {
-                html = '<tr><td colspan="4" class="p-4 text-center text-gray-400 italic">No subject courses added to this curriculum load yet.</td></tr>';
+            var totalTuition = 0;
+            var majorCount = 0;
+            var flatMisc = 9000;
+            
+            if(!data || data.length === 0) {
+                html = '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No subject courses added to this curriculum load yet.</td></tr>';
             } else {
                 data.forEach(function(row) {
+                    var currentPrice = parseFloat(row.price) || 0;
+                    totalTuition += currentPrice;
+                    
+                    // Case-insensitive minor/major categorizer matching rule
+                    var codeString = String(row.subject_code).toUpperCase().trim();
+                    if (!codeString.startsWith('GE') && !codeString.startsWith('GEE')) {
+                        majorCount++;
+                    }
+
                     html += `<tr class="hover:bg-gray-50 transition border-b border-gray-100">
                         <td class="p-3 font-semibold text-purple-900">${escapeHtml(row.subject_code)}</td>
                         <td class="p-3 text-gray-700">${escapeHtml(row.subject_title)}</td>
                         <td class="p-3 text-center font-bold text-gray-600">${row.units}</td>
+                        <td class="p-3 text-right font-medium text-gray-700">${currentPrice.toFixed(2)} PHP</td>
                         <td class="p-3 text-center">
                             <button type="button" onclick="removeSubjectFromLoad(${row.ssid}, ${csid})" class="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                         </td>
@@ -906,6 +1007,19 @@ function fetchSubjectLoadList(csid) {
                 });
             }
             document.getElementById('subjects_table_body').innerHTML = html;
+            
+            // Core Assessment Calculation Block
+            var totalLab = majorCount * 540;
+            var grandTotal = totalTuition + flatMisc + totalLab;
+            
+            // Push calculated values to the DOM Summary elements
+            document.getElementById('fee_tuition').innerText = totalTuition.toFixed(2) + " PHP";
+            document.getElementById('major_count').innerText = majorCount;
+            document.getElementById('fee_lab').innerText = totalLab.toFixed(2) + " PHP";
+            document.getElementById('fee_total').innerText = grandTotal.toFixed(2) + " PHP";
+        },
+        error: function(xhr) {
+            console.error("Fetch Failure Status:", xhr.statusText);
         }
     });
 }
@@ -919,24 +1033,36 @@ function saveSubjectLoad(e) {
         type: 'POST',
         url: window.location.href,
         data: formData,
-        dataType: 'json',
-        success: function(res) {
+        success: function(response) {
+            try {
+                var res = parsePollutedJson(response);
+            } catch(err) {
+                console.error("Layout Pollution Handled Safely:", response);
+            }
+            
             document.getElementById('subject_code').value = '';
             document.getElementById('subject_title').value = '';
+            document.getElementById('subject_units').value = '';
             fetchSubjectLoadList(csid);
+        },
+        error: function(xhr, status, error) {
+            console.error("Network Exception Details:", xhr.responseText);
+            alert("Network Error: Connection failed to reach backend processing layer.");
         }
     });
 }
 
 function removeSubjectFromLoad(ssid, csid) {
-    if(confirm("Remove this subject from the student's curriculum load?")){
+    if(confirm("Are you sure you want to drop this subject from the record load configuration?")) {
         $.ajax({
             type: 'POST',
             url: window.location.href,
             data: { action_type: 'remove_subject', ssid: ssid },
-            dataType: 'json',
-            success: function(res) {
+            success: function(response) {
                 fetchSubjectLoadList(csid);
+            },
+            error: function(xhr) {
+                console.error("Drop Request Failure:", xhr.responseText);
             }
         });
     }
@@ -949,6 +1075,12 @@ function printSubjectSummary() {
     var level = document.getElementById('sub_glevel').innerText;
     var tableHTML = document.getElementById('subjects_table_body').outerHTML;
     
+    var tuitionText = document.getElementById('fee_tuition').innerText;
+    var miscText = document.getElementById('fee_misc').innerText;
+    var labText = document.getElementById('fee_lab').innerText;
+    var totalText = document.getElementById('fee_total').innerText;
+    var majorCountText = document.getElementById('major_count').innerText;
+
     var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
     var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
     var logoSrc = "<?php echo $defaultPic; ?>";
@@ -964,32 +1096,26 @@ function printSubjectSummary() {
             .header-container { text-align: center; margin-bottom: 25px; position: relative; }
             .header-container img { position: absolute; left: 0; top: 0; width: 75px; height: 75px; object-fit: contain; }
             .header-container h2 { margin: 0; font-size: 22px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
-            .header-container p { margin: 4px 0; font-size: 13px; }
-            .doc-title { font-weight: bold; margin-top: 15px; font-size: 16px; text-decoration: underline; letter-spacing: 0.5px; }
-            
+            .doc-title { font-weight: bold; margin-top: 15px; font-size: 16px; text-decoration: underline; }
             .student-info-grid { border: 1px solid #000; padding: 12px; border-radius: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; margin-bottom: 20px; }
-            .student-info-grid div { margin-bottom: 2px; }
-
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
             th { font-weight: bold; background-color: #f3f4f6; }
             td:last-child, th:last-child { display: none !important; }
-            
-            .footer { margin-top: 60px; display: flex; justify-content: flex-end; font-size: 13px; }
-            .signature-box { text-align: left; }
-            .signature-box p { margin: 0 0 35px 0; font-size: 13px; }
+            td:nth-child(4) { text-align: right; }
+            .summary-card { margin-top: 20px; border: 1px dashed #000; padding: 12px; font-size: 13px; width: 320px; margin-left: auto; }
+            .summary-line { display: flex; justify-content: space-between; margin-bottom: 4px; }
+            .summary-total { border-top: 1px solid #000; pt: 4px; font-weight: bold; margin-top: 6px; font-size: 14px; }
+            .footer { margin-top: 40px; display: flex; justify-content: flex-end; font-size: 13px; }
             .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; width: 180px; display: inline-block; padding-bottom: 2px; }
-            @media print { @page { margin: 0.5in; } body { margin: 0; } }
         </style>
     </head>
     <body>
         <div class="header-container">
             <img src="${logoSrc}" alt="Logo">
             <h2>AMANDO COPE COLLEGE</h2>
-            <p>A.A Baranghawon Tabaco City</p>
             <div class="doc-title">OFFICIAL SUBJECT SUMMARY & ENROLLMENT LOAD</div>
         </div>
-        
         <div class="student-info-grid">
             <div><b>Student ID:</b> ${idNum}</div>
             <div><b>School Year:</b> ${sy}</div>
@@ -998,27 +1124,26 @@ function printSubjectSummary() {
             <div><b>Program Load:</b> ${program}</div>
             <div><b>Year Level:</b> ${level}</div>
         </div>
-
         <table>
             <thead>
                 <tr>
-                    <th style="width: 25%;">Subject Code</th>
-                    <th style="width: 60%;">Subject Title / Description</th>
-                    <th style="width: 15%; text-align: center;">Units</th>
+                    <th style="width: 20%;">Subject Code</th>
+                    <th style="width: 50%;">Subject Title / Description</th>
+                    <th style="width: 10%; text-align: center;">Units</th>
+                    <th style="width: 20%; text-align: right;">Price</th>
                 </tr>
             </thead>
-            <tbody>
-                ${tableHTML}
-            </tbody>
+            <tbody>${tableHTML}</tbody>
         </table>
-
-        <div class="footer">
-            <div class="signature-box">
-                <p>Issued by:</p>
-                <div class="signature-line">ACC REGISTRAR</div>
-            </div>
+        
+        <div class="summary-card">
+            <div class="summary-line"><span>Tuition Fee:</span><span>${tuitionText}</span></div>
+            <div class="summary-line"><span>Miscellaneous Fees:</span><span>${miscText}</span></div>
+            <div class="summary-line"><span>Laboratory Fees (${majorCountText} Majors):</span><span>${labText}</span></div>
+            <div class="summary-line summary-total"><span>Total Term Assessment:</span><span>${totalText}</span></div>
         </div>
 
+        <div class="footer"><div><p>Issued by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
         <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
     </body>
     </html>`;
@@ -1050,11 +1175,7 @@ function triggerBulkDelete() {
     var table = $('#dataTables-example').DataTable();
     var checkedBoxes = table.$('.student-checkbox:checked');
     var ids = [];
-    
-    checkedBoxes.each(function() {
-        ids.push($(this).val());
-    });
-    
+    checkedBoxes.each(function() { ids.push($(this).val()); });
     document.getElementById('delete_ids').value = ids.join(',');
     openModal('deleteStudentModal');
 }
@@ -1095,11 +1216,10 @@ window.onclick = function(event) {
     }
 }
 
-// =========================================================================
-// 🔒 ISOLATED DATATABLES INITIALIZATION ENGINE
-// =========================================================================
 $(document).ready(function() {
-    $.fn.dataTable.ext.search = [];
+    if ($.fn.DataTable.isDataTable('#dataTables-example')) {
+        $('#dataTables-example').DataTable().destroy();
+    }
 
     var table = $('#dataTables-example').DataTable({
         "responsive": true,
@@ -1109,60 +1229,36 @@ $(document).ready(function() {
         "info": true,
         "language": {
             "search": "Search Learner: ", 
-            "searchPlaceholder": "Type to filter...",
-            "paginate": {
-                "previous": "Previous",
-                "next": "Next"
-            }
-        },
-        "drawCallback": function(settings) {
-            var api = this.api();
-            var pages = api.page.info().pages;
-            if (pages <= 1) {
-                $('.dataTables_paginate').hide();
-            } else {
-                $('.dataTables_paginate').show();
-            }
+            "searchPlaceholder": "Type to filter..."
         }
     });
 
-    // Master toggle checkbox controller
     $('#selectAllCheckboxes').on('change', function() {
         var isChecked = $(this).is(':checked');
         table.$('.student-checkbox').prop('checked', isChecked);
         updateBulkDeleteButton();
     });
 
-    // Live listening node for row interactions (Pagination safe context)
     $(document).on('change', '.student-checkbox', function() {
         updateBulkDeleteButton();
     });
 
-    // 🚀 Dynamic Dropdown Custom Filter Extension (Table ID safe)
     $.fn.dataTable.ext.search.push(
         function(settings, data, dataIndex) {
-            if (settings.nTable.id !== 'dataTables-example') {
-                return true; 
-            }
+            if (settings.nTable.id !== 'dataTables-example') return true; 
 
             var selectedProgram = $('#filterProgram').val() || '';
             var selectedLevel = $('#filterLevel').val() || '';
+            var rowProgram = (data[3] || '').trim(); 
+            var rowLevel = (data[4] || '').trim();   
             
-            var rowProgram = (data[3] || '').trim(); // Column index 3 is Program
-            var rowLevel = (data[4] || '').trim();   // Column index 4 is Year Level
-            
-            if (selectedProgram !== '' && rowProgram !== selectedProgram.trim()) {
-                return false;
-            }
-            if (selectedLevel !== '' && rowLevel !== selectedLevel.trim()) {
-                return false;
-            }
+            if (selectedProgram !== '' && rowProgram !== selectedProgram.trim()) return false;
+            if (selectedLevel !== '' && rowLevel !== selectedLevel.trim()) return false;
             
             return true; 
         }
     );
 
-    // Bind dropdown selectors to trigger table state updates seamlessly
     $('#filterProgram, #filterLevel').on('change', function() {
         table.draw();
     });
