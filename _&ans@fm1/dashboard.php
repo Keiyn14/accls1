@@ -16,7 +16,7 @@ $sem=$csData['semester'] ?? 'None Active';
 
 // --- 🎯 BULLETPROOF COLLEGE COUNTER ENGINE ---
 // Try counting with active term filter first
-$strCol="SELECT count(csid) as college FROM students WHERE syid=".$syid." and sid=".$sid." and did=1";
+$strCol="SELECT count(csid) as college FROM students WHERE did=1";
 $colRes=$dbcon->query($strCol);
 $colData=$colRes->fetch_assoc();
 $college=intval($colData['college'] ?? 0);
@@ -51,25 +51,20 @@ $chartPayments = [];
 // Compile College Records
 $sColQ = "SELECT cid, program FROM offerings WHERE did=1 ORDER BY program ASC";
 $colQRes = $dbcon->query($sColQ);
+
 while($cRow = $colQRes->fetch_assoc()){
     $cid = $cRow['cid'];
     $chartLabels[] = $cRow['program'];
     
-    // Count Enrolled Students with intelligent term fallback matching logic
-    $eRes = $dbcon->query("SELECT COUNT(csid) as total FROM students WHERE cid=$cid AND syid=$syid AND sid=$sid");
+    // 🎯 SIMPLIFIED ENROLLMENT COUNTER
+    // Count ALL students in this specific program (cid) regardless of term
+    $eRes = $dbcon->query("SELECT COUNT(csid) as total FROM students WHERE cid=$cid");
     $eData = $eRes->fetch_assoc();
-    $subTotal = intval($eData['total'] ?? 0);
+    $chartEnrolled[] = intval($eData['total'] ?? 0);
     
-    if($subTotal === 0) {
-        // Fallback to global program count if term mapping isn't established yet
-        $eResFallback = $dbcon->query("SELECT COUNT(csid) as total FROM students WHERE cid=$cid");
-        $eDataFallback = $eResFallback->fetch_assoc();
-        $subTotal = intval($eDataFallback['total'] ?? 0);
-    }
-    $chartEnrolled[] = $subTotal;
-    
-    // Sum Payments from ledger matching active school year and semester via relational inner join
-    $pRes = $dbcon->query("SELECT SUM(l.tfee) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.cid=$cid AND l.syid=$syid AND l.sid=$sid");
+    // 🎯 SIMPLIFIED PAYMENTS CALCULATOR
+    // Sum ALL payments for this specific program regardless of term
+    $pRes = $dbcon->query("SELECT SUM(l.tfee) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.cid=$cid");
     $pData = $pRes->fetch_assoc();
     $chartPayments[] = floatval($pData['total_paid'] ?? 0.00);
 }
