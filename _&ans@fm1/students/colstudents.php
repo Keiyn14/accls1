@@ -750,7 +750,7 @@ if(isset($_POST['action_type'])){
 
                     <div>
                         <label class="block text-xs font-bold uppercase tracking-wider text-purple-800 mb-2.5">
-                            Available Curriculum Map Grid
+                            Available Program Curriculum Map
                         </label>
                         <div id="modal_visual_subject_catalog" class="space-y-4 max-h-[350px] overflow-y-auto pr-1">
                             <div class="text-xs text-gray-400 italic text-center py-6">
@@ -762,13 +762,13 @@ if(isset($_POST['action_type'])){
 
                 <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-[260px] overflow-y-auto bg-white mb-4">
                     <table class="w-full text-left text-sm">
-                        <thead class="bg-gray-100 text-gray-700 border-b font-semibold">
-                            <tr>
-                                <th class="p-3">Subject Code</th>
-                                <th class="p-3">Title Description</th>
-                                <th class="p-3 w-20 text-center">Units</th>
-                                <th class="p-3 w-28 text-right">Price</th>
-                                <th class="p-3 w-16 text-center">Action</th>
+                        <<thead>
+                            <tr class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
+                                <th class="p-3 text-left">Subject Code</th>
+                                <th class="p-3 text-left">Subject Title</th>
+                                <th class="p-3 text-center">Units</th>
+                                <th class="p-3 text-right print:hidden print-hide">Price</th>
+                                <th class="p-3 text-center print:hidden print-hide">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="subjects_table_body" class="divide-y text-gray-800">
@@ -915,7 +915,7 @@ function triggerSubjectModal(btn) {
     document.getElementById('sub_program').innerText = btn.getAttribute('data-program') || '';
     document.getElementById('sub_glevel').innerText = btn.getAttribute('data-glevel') || '';
     
-    // Reset selection indicators back to clean states
+    // Reset selection input display boxes
     document.getElementById('subject_code').value = '';
     document.getElementById('subject_title').value = '';
     document.getElementById('subject_units').value = '';
@@ -947,15 +947,14 @@ function loadCatalogSubjectsDropdown(cid) {
             catalogContainer.empty();
 
             if (!activeCatalogSubjects || activeCatalogSubjects.length === 0) {
-                catalogContainer.html('<div class="text-center text-gray-400 py-6 text-xs italic">No catalog records found under this specific program offering.</div>');
+                catalogContainer.html('<div class="text-center text-gray-400 py-8 text-sm italic">No catalog records found under this specific program offering.</div>');
                 return;
             }
 
-            // Group structures maps mapping array values
             var structuredData = {};
             var yearOrder = ["1st Year", "2nd Year", "3rd Year", "4th Year", "General/Unassigned Year"];
 
-            // 1. Group payloads by sorting text pattern attributes
+            // 1. Group curriculum entries by checking string names
             activeCatalogSubjects.forEach(function(item) {
                 var fullTitle = item.subject_title || '';
                 var detectedYear = "General/Unassigned Year";
@@ -989,19 +988,19 @@ function loadCatalogSubjectsDropdown(cid) {
                 });
             });
 
-            // 2. Append side-by-side horizontal semester cards blocks dynamically
+            // 2. Append side-by-side semester card blocks dynamically
             yearOrder.forEach(function(yearLabel) {
                 if (!structuredData[yearLabel]) return;
 
                 var semesterBlocks = structuredData[yearLabel];
                 
                 var yearCardHtml = `
-                    <div class="bg-white rounded-xl border border-gray-200 p-3 space-y-2.5 shadow-sm">
-                        <div class="flex items-center gap-2 text-xs font-bold uppercase text-gray-700 border-b border-gray-100 pb-1">
-                            <span class="w-1.5 h-3 bg-purple-600 rounded-full"></span>
+                    <div class="bg-white rounded-xl border border-gray-200 p-4 space-y-3.5 shadow-sm">
+                        <div class="flex items-center gap-2 text-sm md:text-base font-extrabold uppercase tracking-wide text-gray-800 border-b border-gray-100 pb-2">
+                            <span class="w-2 h-4 bg-purple-600 rounded-full"></span>
                             <h4>${yearLabel}</h4>
                         </div>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
                 `;
 
                 var trackingTerms = ["1st Sem", "2nd Sem"];
@@ -1010,24 +1009,24 @@ function loadCatalogSubjectsDropdown(cid) {
                     var termTitle = (term === "1st Sem") ? "1st Semester" : "2nd Semester";
 
                     yearCardHtml += `
-                        <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-200/60">
-                            <div class="bg-gray-700 text-white text-[10px] font-bold px-2 py-0.5 rounded flex justify-between mb-1.5">
+                        <div class="bg-gray-50 rounded-xl p-3 border border-gray-200/80">
+                            <div class="bg-gray-800 text-white text-xs font-bold tracking-wider uppercase px-3 py-1.5 rounded-lg flex justify-between mb-2.5 shadow-sm">
                                 <span>${termTitle}</span>
-                                <span class="bg-gray-600 px-1 rounded text-[9px]">${subsList.length} items</span>
+                                <span class="bg-gray-700 px-2 py-0.5 rounded text-xs font-semibold">${subsList.length} items</span>
                             </div>
                     `;
 
                     if (subsList.length > 0) {
-                        yearCardHtml += `<div class="space-y-1 max-h-[140px] overflow-y-auto pr-0.5">`;
+                        yearCardHtml += `<div class="space-y-2 max-h-[180px] overflow-y-auto pr-0.5">`;
                         subsList.forEach(function(sub) {
                             yearCardHtml += `
-                                <div class="subject-clickable-row bg-white p-2 rounded border border-gray-200 hover:border-purple-400 hover:bg-purple-50/20 cursor-pointer transition flex justify-between items-center group"
+                                <div class="subject-clickable-row bg-white p-3 rounded-xl border border-gray-200 hover:border-purple-500 hover:bg-purple-50/20 cursor-pointer transition flex justify-between items-center group shadow-sm"
                                      data-code="${escapeHtml(sub.code)}" data-title="${escapeHtml(sub.title)}" data-units="${sub.units}">
-                                    <div class="text-xs truncate max-w-[80%]">
-                                        <div class="font-bold text-gray-900 group-hover:text-purple-700">${escapeHtml(sub.code)}</div>
-                                        <div class="text-gray-500 truncate text-[11px]">${escapeHtml(sub.title)}</div>
+                                    <div class="truncate max-w-[75%] pr-2">
+                                        <div class="text-sm font-black text-gray-900 group-hover:text-purple-700 tracking-wide">${escapeHtml(sub.code)}</div>
+                                        <div class="text-xs text-gray-500 truncate mt-0.5 font-medium">${escapeHtml(sub.title)}</div>
                                     </div>
-                                    <span class="text-[9px] font-bold text-gray-400 bg-gray-100 group-hover:bg-purple-600 group-hover:text-white px-1.5 py-0.5 rounded transition">
+                                    <span class="text-xs font-extrabold text-purple-600 bg-purple-50 group-hover:bg-purple-600 group-hover:text-white px-3 py-1.5 rounded-lg transition border border-purple-100 group-hover:border-purple-600 whitespace-nowrap shadow-sm">
                                         Select
                                     </span>
                                 </div>
@@ -1035,7 +1034,7 @@ function loadCatalogSubjectsDropdown(cid) {
                         });
                         yearCardHtml += `</div>`;
                     } else {
-                        yearCardHtml += `<div class="text-[10px] text-gray-400 italic text-center py-3">No subjects allocated.</div>`;
+                        yearCardHtml += `<div class="text-xs text-gray-400 italic text-center py-5">No subjects allocated.</div>`;
                     }
 
                     yearCardHtml += `</div>`;
@@ -1044,20 +1043,82 @@ function loadCatalogSubjectsDropdown(cid) {
                 yearCardHtml += `</div></div>`;
                 catalogContainer.append(yearCardHtml);
             });
+        }
+    });
+}
 
-            // 3. User points and selects card row callback hook values matching inputs
-            $('.subject-clickable-row').on('click', function() {
-                var subCode  = $(this).data('code');
-                var subTitle = $(this).data('title');
-                var subUnits = $(this).data('units');
+// 🚀 EVENT DELEGATION: Fixes the non-clickable issue by tracking dynamically rendered elements smoothly
+$(document).on('click', '.subject-clickable-row', function() {
+    var subCode  = $(this).attr('data-code');
+    var subTitle = $(this).attr('data-title');
+    var subUnits = $(this).attr('data-units');
 
-                $('#subject_code').val(subCode);
-                $('#subject_title').val(subTitle);
-                $('#subject_units').val(subUnits);
+    $('#subject_code').val(subCode);
+    $('#subject_title').val(subTitle);
+    $('#subject_units').val(subUnits);
 
-                $('.subject-clickable-row').removeClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
-                $(this).addClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
-            });
+    $('.subject-clickable-row').removeClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+    $(this).addClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+});
+
+function fetchSubjectLoadList(csid) {
+    $.ajax({
+        type: 'POST',
+        url: window.location.href, 
+        data: { action_type: 'fetch_subjects', subject_csid: csid },
+        success: function(response) {
+            var data;
+            try {
+                data = parsePollutedJson(response);
+            } catch(e) {
+                console.error("JSON Clean Extraction Crash:", e, response);
+                document.getElementById('subjects_table_body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500 italic">Failed to format response stream payload.</td></tr>';
+                return;
+            }
+
+            var html = '';
+            var totalTuition = 0;
+            var majorCount = 0;
+            var flatMisc = 9000;
+            
+            if(!data || data.length === 0) {
+                html = '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No subject courses added to this curriculum load yet.</td></tr>';
+            } else {
+                data.forEach(function(row) {
+                    var currentPrice = parseFloat(row.price) || 0;
+                    totalTuition += currentPrice;
+                    
+                    var codeString = String(row.subject_code).toUpperCase().trim();
+                    if (!codeString.startsWith('GE') && !codeString.startsWith('GEE')) {
+                        majorCount++;
+                    }
+
+                    // Locate this block inside your fetchSubjectLoadList function and update the classes:
+                    html += `<tr class="hover:bg-gray-50 transition border-b border-gray-100">
+                        <td class="p-3 font-semibold text-purple-900">${escapeHtml(row.subject_code)}</td>
+                        <td class="p-3 text-gray-700">${escapeHtml(row.subject_title)}</td>
+                        <td class="p-3 text-center font-bold text-gray-600">${row.units}</td>
+                        
+                        <td class="p-3 text-right font-medium text-gray-700 print:hidden print-hide">${currentPrice.toFixed(2)} PHP</td>
+                        
+                        <td class="p-3 text-center print:hidden print-hide">
+                            <button type="button" onclick="removeSubjectFromLoad(${row.ssid}, ${csid})" class="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
+                        </td>
+                    </tr>`;
+                });
+            }
+            document.getElementById('subjects_table_body').innerHTML = html;
+            
+            var totalLab = majorCount * 540;
+            var grandTotal = totalTuition + flatMisc + totalLab;
+            
+            document.getElementById('fee_tuition').innerText = totalTuition.toFixed(2) + " PHP";
+            document.getElementById('major_count').innerText = majorCount;
+            document.getElementById('fee_lab').innerText = totalLab.toFixed(2) + " PHP";
+            document.getElementById('fee_total').innerText = grandTotal.toFixed(2) + " PHP";
+        },
+        error: function(xhr) {
+            console.error("Fetch Failure Status:", xhr.statusText);
         }
     });
 }
@@ -1078,7 +1139,6 @@ function saveSubjectLoad(e) {
                 console.error("Layout Pollution Handled Safely:", response);
             }
             
-            // Re-zero entry selectors layout properties states
             document.getElementById('subject_code').value = '';
             document.getElementById('subject_title').value = '';
             document.getElementById('subject_units').value = '';
@@ -1092,6 +1152,22 @@ function saveSubjectLoad(e) {
             alert("Network Error: Connection failed to reach backend processing layer.");
         }
     });
+}
+
+function removeSubjectFromLoad(ssid, csid) {
+    if(confirm("Are you sure you want to drop this subject from the record load configuration?")) {
+        $.ajax({
+            type: 'POST',
+            url: window.location.href,
+            data: { action_type: 'remove_subject', ssid: ssid },
+            success: function(response) {
+                fetchSubjectLoadList(csid);
+            },
+            error: function(xhr) {
+                console.error("Drop Request Failure:", xhr.responseText);
+            }
+        });
+    }
 }
 
 function removeSubjectFromLoad(ssid, csid) {
