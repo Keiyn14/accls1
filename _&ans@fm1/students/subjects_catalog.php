@@ -1,10 +1,9 @@
 <?php
 // 🚀 1. ABSOLUTE TOP OF FILE: Catch background AJAX posts before any styles or text render
 if (isset($_POST['action']) && $_POST['action'] === 'ajax_add_subject') {
-    // Clear out any buffered parent template outputs cleanly
     if (ob_get_length()) ob_clean();
     
-    $dept  = 1; // College context
+    $dept  = 1; 
     $cid   = intval($_POST['cid'] ?? 0);
     $code  = $dbcon->real_escape_string(strtoupper(trim($_POST['subject_code'] ?? '')));
     $title = trim($_POST['subject_title'] ?? '');
@@ -41,7 +40,6 @@ if (isset($_POST['action']) && $_POST['action'] === 'ajax_add_subject') {
     exit();
 }
 
-// Handle Delete Subject Row Action
 if(isset($_POST['btnDeleteSubject'])){
     $sub_id = intval($_POST['sub_id']);
     if($sub_id > 0){
@@ -56,7 +54,6 @@ $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOT
 ?>
 
 <style>
-    /* Synchronized Global Modal Styles */
     .modal-overlay {
         display: none;
         position: fixed;
@@ -77,9 +74,6 @@ $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOT
         width: min(95%, 800px);
         margin: auto;
     }
-    .modal-dialog-sm {
-        max-width: 500px !important;
-    }
     .modal-content {
         background: #ffffff;
         border-radius: 1rem;
@@ -95,37 +89,16 @@ $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOT
         transform: translateY(0);
         opacity: 1;
     }
-    .modal-header { padding: 1rem 1.25rem; }
-    .modal-header .close { background: transparent; border: none; font-size: 1.5rem; line-height: 1; cursor: pointer;}
     .modal-body { padding: 1.5rem 1.5rem 1rem; }
     .modal-footer { padding: 1rem 1.5rem; }
 
-    /* --- DATA TABLES ENHANCEMENTS --- */
-    .dataTables_wrapper .dataTables_filter {
-        margin-bottom: 1.5rem;
-        float: right;
-        text-align: right;
-    }
-    .dataTables_wrapper .dataTables_length {
-        margin-bottom: 1.5rem;
-        float: left;
-    }
-    .dataTables_wrapper .dataTables_filter input,
-    .dataTables_wrapper .dataTables_length select {
-        border: 1px solid #d1d5db;
-        border-radius: 0.5rem;
-        padding: 0.4rem 0.75rem;
-        outline: none;
-    }
+    /* Hide DataTables utility headers cleanly */
+    .dataTables_wrapper .dataTables_filter,
+    .dataTables_wrapper .dataTables_length,
     .dataTables_wrapper .dataTables_info {
-        float: left;
-        margin-top: 1.25rem;
-        color: #4b5563;
-        font-size: 0.875rem;
-        font-weight: 500;
+        display: none !important;
     }
 
-    /* --- FIXED PAGINATION DESIGN ENGINE --- */
     .dataTables_wrapper .dataTables_paginate {
         float: right;
         margin-top: 1rem;
@@ -138,12 +111,6 @@ $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOT
         border-radius: 0.5rem !important;
         overflow: hidden;
         border: 1px solid #d1d5db !important;
-        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-    }
-    .dataTables_paginate ul.pagination li {
-        display: inline !important;
-        margin: 0 !important;
-        padding: 0 !important;
     }
     .dataTables_paginate ul.pagination li a {
         position: relative;
@@ -151,90 +118,167 @@ $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOT
         padding: 0.5rem 0.875rem;
         font-size: 0.875rem;
         font-weight: 600;
-        line-height: 1.25;
         color: #374151 !important;
         background-color: #ffffff;
         border-right: 1px solid #d1d5db;
         text-decoration: none !important;
-        transition: all 0.15s ease-in-out;
-        cursor: pointer;
-    }
-    .dataTables_paginate ul.pagination li:last-child a {
-        border-right: none;
-    }
-    .dataTables_paginate ul.pagination li a:hover {
-        background-color: #f0fdf4 !important;
-        color: #15803d !important;
     }
     .dataTables_paginate ul.pagination li.active a {
         background-color: #16a34a !important;
         color: #ffffff !important;
         border-color: #16a34a !important;
-        cursor: default;
-    }
-    .dataTables_paginate ul.pagination li.disabled a {
-        color: #9ca3af !important;
-        background-color: #f9fafb !important;
-        cursor: not-allowed;
-        pointer-events: none;
     }
 </style>
 
 <br />
 <div class="p-6 space-y-6">
-    <div class="flex flex-wrap lg:flex-nowrap gap-4 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-hide">
-        <div class="flex flex-wrap gap-3">
+    <div class="flex flex-wrap gap-4 justify-between items-center bg-white p-5 rounded-xl shadow-sm border border-gray-100 print-hide">
+        <div class="flex flex-wrap gap-4 items-center w-full md:w-auto">
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Academic Program</label>
+                <select id="filter_program" class="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <?php
+                    $progMenu = $dbcon->query("SELECT DISTINCT program FROM offerings WHERE did=$dept ORDER BY program ASC");
+                    $hasComSci = false;
+                    while($pm = $progMenu->fetch_assoc()) {
+                        if(!empty($pm['program'])) {
+                            $isTarget = (strpos(strtolower($pm['program']), 'computer science') !== false || strpos(strtolower($pm['program']), 'com sci') !== false);
+                            if($isTarget) $hasComSci = true;
+                            $selected = $isTarget ? 'selected' : '';
+                            echo "<option value='".htmlspecialchars($pm['program'])."' $selected>".htmlspecialchars($pm['program'])."</option>";
+                        }
+                    }
+                    if(!$hasComSci) {
+                        echo "<option value='all' selected>All Programs</option>";
+                    } else {
+                        echo "<option value='all'>All Programs</option>";
+                    }
+                    ?>
+                </select>
+            </div>
+
+            <div>
+                <label class="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1">Semester Term</label>
+                <select id="filter_semester" class="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg text-sm font-semibold text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                    <option value="all">All Semesters</option>
+                    <option value="1st Sem">1st Semester</option>
+                    <option value="2nd Sem">2nd Semester</option>
+                    <option value="Summer">Summer Term</option>
+                </select>
+            </div>
+        </div>
+
+        <div>
             <button onclick="openModal('addSubjectModal')" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
                 <i class="icon-plus"></i> Add New Subject
             </button>
         </div>
     </div>
 
-    <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4 print-hide">
-            <h3 class="text-white text-lg font-semibold">College Subjects Catalog &amp; Pricing Setup</h3>
-        </div>
-        <div class="p-6">
-            <div class="overflow-x-auto">
-                <table class="w-full border-collapse" id="dataTables-subjects">
-                    <thead>
-                        <tr class="bg-gray-100 border-b-2 border-gray-300">
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Program Area</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Subject Code</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Subject Title / Allocation Description</th>
-                            <th class="px-4 py-3 text-center font-semibold text-gray-700">Units</th>
-                            <th class="px-4 py-3 text-right font-semibold text-gray-700">Price Fee (₱)</th>
-                            <th class="px-4 py-3 text-center font-semibold text-gray-700">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-200">
-                        <?php
-                        $res = $dbcon->query("SELECT s.*, o.program FROM subjects s LEFT JOIN offerings o ON s.cid = o.cid WHERE s.did=$dept ORDER BY o.program ASC, s.subject_code ASC");
-                        if($res) {
-                            while($row = $res->fetch_assoc()){
-                            ?>
-                            <tr class="hover:bg-gray-50 transition duration-150">
-                                <td class="px-4 py-3 text-blue-700 font-bold"><?php echo htmlspecialchars($row['program'] ?? 'Unassigned'); ?></td>
-                                <td class="px-4 py-3 text-gray-700 font-semibold"><?php echo htmlspecialchars($row['subject_code']); ?></td>
-                                <td class="px-4 py-3 text-gray-800"><?php echo htmlspecialchars($row['subject_title']); ?></td>
-                                <td class="px-4 py-3 text-center text-gray-600"><?php echo $row['units']; ?> Units</td>
-                                <td class="px-4 py-3 text-right text-green-700 font-bold">₱<?php echo number_format($row['price'], 2); ?></td>
-                                <td class="px-4 py-3 text-center">
-                                    <form method="post" onsubmit="return confirm('Delete this subject permanently?');" class="inline">
-                                        <input type="hidden" name="sub_id" value="<?php echo $row['sub_id']; ?>">
-                                        <button type="submit" name="btnDeleteSubject" class="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs hover:bg-red-700 font-semibold transition">
-                                            <i class="icon-trash"></i> Delete
-                                        </button>
-                                    </form>
-                                </td>
-                            </tr>
-                            <?php 
-                            }
-                        } 
-                        ?>
-                    </tbody>
-                </table>
+    <div class="space-y-6" id="catalog_cards_container">
+        <?php
+        $res = $dbcon->query("SELECT s.*, o.program 
+                              FROM subjects s 
+                              LEFT JOIN offerings o ON s.cid = o.cid 
+                              WHERE s.did=$dept 
+                              ORDER BY o.program ASC, s.subject_title ASC");
+        
+        if($res && $res->num_rows > 0) {
+            // Group collections array to fix structural sorting splits
+            $grouped_data = [];
+
+            while($row = $res->fetch_assoc()){
+                $title_clean = $row['subject_title'];
+                $detected_year = "General/Unassigned Year";
+                $detected_sem = "General Term";
+
+                if (preg_match('/\((.*?),\s*(.*?)\)/', $title_clean, $matches)) {
+                    $detected_year = trim($matches[1]);
+                    $detected_sem = trim($matches[2]);
+                    $title_clean = preg_replace('/\s*\(.*?\)\s*/', '', $title_clean);
+                }
+
+                // Standardize Semesters naming scheme for filter lookups
+                if (strpos(strtolower($detected_sem), '1st') !== false) $detected_sem = "1st Sem";
+                if (strpos(strtolower($detected_sem), '2nd') !== false) $detected_sem = "2nd Sem";
+                if (strpos(strtolower($detected_sem), 'summer') !== false) $detected_sem = "Summer";
+
+                $program_name = !empty($row['program']) ? $row['program'] : 'Unassigned Program';
+                
+                $unique_key = $program_name . "||" . $detected_year . "||" . $detected_sem;
+                
+                $grouped_data[$unique_key][] = [
+                    'sub_id' => $row['sub_id'],
+                    'subject_code' => $row['subject_code'],
+                    'title' => $title_clean,
+                    'units' => $row['units'],
+                    'price' => $row['price']
+                ];
+            }
+
+            // Loop sorted groups explicitly
+            foreach ($grouped_data as $key_identity => $subject_rows) {
+                list($p_name, $y_level, $s_term) = explode("||", $key_identity);
+                ?>
+                <div class="subject-card bg-white rounded-xl shadow-md overflow-hidden border border-gray-100 transition-all duration-200" 
+                     data-program="<?php echo htmlspecialchars($p_name); ?>" 
+                     data-semester="<?php echo htmlspecialchars($s_term); ?>">
+                    <div class="bg-gradient-to-r from-emerald-700 to-green-600 px-6 py-3.5 flex justify-between items-center">
+                        <h3 class="text-white text-sm font-bold tracking-wide uppercase">
+                            <i class="icon-folder-open mr-2"></i> 
+                            <?php echo htmlspecialchars($p_name); ?> 
+                            <span class="mx-2 text-green-200">|</span> 
+                            <span class="text-yellow-300 font-medium"><?php echo htmlspecialchars($y_level); ?></span>
+                            <span class="mx-2 text-green-200">•</span>
+                            <span class="text-cyan-200 font-medium"><?php echo htmlspecialchars($s_term); ?></span>
+                        </h3>
+                    </div>
+                    <div class="p-4">
+                        <div class="overflow-x-auto">
+                            <table class="w-full border-collapse subjects-data-table">
+                                <thead>
+                                    <tr class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
+                                        <th class="px-4 py-2.5 text-left font-bold">Subject Code</th>
+                                        <th class="px-4 py-2.5 text-left font-bold">Subject Title</th>
+                                        <th class="px-4 py-2.5 text-center font-bold">Units</th>
+                                        <th class="px-4 py-2.5 text-right font-bold">Price Fee (₱)</th>
+                                        <th class="px-4 py-2.5 text-center print-hide font-bold">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100 text-sm">
+                                <?php foreach($subject_rows as $sub) { ?>
+                                    <tr class="hover:bg-gray-50 transition duration-150">
+                                        <td class="px-4 py-2.5 text-gray-900 font-bold tracking-tight"><?php echo htmlspecialchars($sub['subject_code']); ?></td>
+                                        <td class="px-4 py-2.5 text-gray-700 font-medium"><?php echo htmlspecialchars($sub['title']); ?></td>
+                                        <td class="px-4 py-2.5 text-center text-gray-600"><?php echo $sub['units']; ?> Units</td>
+                                        <td class="px-4 py-2.5 text-right text-emerald-700 font-bold">₱<?php echo number_format($sub['price'], 2); ?></td>
+                                        <td class="px-4 py-2.5 text-center print-hide">
+                                            <form method="post" onsubmit="return confirm('Delete this subject permanently?');" class="inline">
+                                                <input type="hidden" name="sub_id" value="<?php echo $sub['sub_id']; ?>">
+                                                <button type="submit" name="btnDeleteSubject" class="px-2.5 py-1 bg-red-600 text-white rounded text-xs hover:bg-red-700 font-semibold transition">
+                                                    <i class="icon-trash"></i> Delete
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                <?php } ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <?php
+            }
+        } else {
+            ?>
+            <div id="no_data_alert" class="bg-white p-12 text-center rounded-xl shadow-md border border-gray-100 text-gray-400">
+                <i class="icon-book-open text-4xl mb-2 block"></i> No subjects registered inside this program setup catalog.
             </div>
+            <?php
+        }
+        ?>
+        <div id="empty_filter_alert" class="hidden bg-white p-12 text-center rounded-xl shadow-md border border-gray-100 text-gray-400">
+            <i class="icon-info-sign text-4xl mb-2 block"></i> No subjects match the selected dropdown filter criteria.
         </div>
     </div>
 </div>
@@ -331,6 +375,42 @@ window.onclick = function(event) {
 }
 
 $(document).ready(function() { 
+    // Client-Side Live Filtration Engine Hook
+    function applySelectedFilters() {
+        var selectedProgram = $('#filter_program').val();
+        var selectedSemester = $('#filter_semester').val();
+        var visibleCount = 0;
+
+        $('.subject-card').each(function() {
+            var cardProgram = $(this).data('program');
+            var cardSemester = $(this).data('semester');
+
+            var programMatch = (selectedProgram === 'all' || cardProgram === selectedProgram);
+            var semesterMatch = (selectedSemester === 'all' || cardSemester === selectedSemester);
+
+            if (programMatch && semesterMatch) {
+                $(this).removeClass('hidden');
+                visibleCount++;
+            } else {
+                $(this).addClass('hidden');
+            }
+        });
+
+        if (visibleCount === 0) {
+            $('#empty_filter_alert').removeClass('hidden');
+        } else {
+            $('#empty_filter_alert').addClass('hidden');
+        }
+    }
+
+    // Attach runtime triggers to filters
+    $('#filter_program, #filter_semester').on('change', function() {
+        applySelectedFilters();
+    });
+
+    // Execute filter defaults right at boot time
+    applySelectedFilters();
+
     $('#ajaxAddSubjectForm').on('submit', function(e) {
         e.preventDefault();
         var alertBox = $('#modalAlertBox');
@@ -340,11 +420,9 @@ $(document).ready(function() {
             type: 'POST',
             url: window.location.href,
             data: $(this).serialize() + '&action=ajax_add_subject',
-            dataType: 'text', // 🚀 Changed to text to capture clean token outputs safely
+            dataType: 'text',
             success: function(responseText) {
-                // Extract clean data array block from template layers
                 var matches = responseText.match(/===JSON_DATA===(.*?)===JSON_DATA===/);
-                
                 if (matches && matches[1]) {
                     try {
                         var response = JSON.parse(matches[1]);
@@ -374,15 +452,18 @@ $(document).ready(function() {
         });
     });
 
-    $('#dataTables-subjects').DataTable({ 
+    // Cleaned DataTables Initialization Parameters (Removes search and records dropdown)
+    $('.subjects-data-table').DataTable({ 
         "responsive": true, 
-        "pageLength": 10, 
+        "paging": true,
+        "pageLength": 25, 
+        "bLengthChange": false, // Removes records per page dropdown
+        "bFilter": false,       // Removes search bar input form
+        "bInfo": false,         // Removes summary label engine entries text
         "order": [[0, "asc"]],
         "language": {
-            "search": "Search Subject: ", 
-            "searchPlaceholder": "Type to filter...",
             "paginate": {
-                "previous": "Previous",
+                "previous": "Prev",
                 "next": "Next"
             }
         },
@@ -390,9 +471,9 @@ $(document).ready(function() {
             var api = this.api();
             var pages = api.page.info().pages;
             if (pages <= 1) {
-                $('.dataTables_paginate').hide();
+                $(this).closest('.dataTables_wrapper').find('.dataTables_paginate').hide();
             } else {
-                $('.dataTables_paginate').show();
+                $(this).closest('.dataTables_wrapper').find('.dataTables_paginate').show();
             }
         }
     }); 

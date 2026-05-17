@@ -726,25 +726,37 @@ if(isset($_POST['action_type'])){
                     <div><b>Year Level:</b> <span id="sub_glevel" class="font-semibold"></span></div>
                 </div>
 
-                <form id="ajaxSubjectForm" onsubmit="saveSubjectLoad(event)" class="grid grid-cols-1 md:grid-cols-12 gap-3 mb-6 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                <form id="ajaxSubjectForm" onsubmit="saveSubjectLoad(event)" class="mb-6 bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-4 shadow-sm">
                     <input type="hidden" id="subject_csid" name="subject_csid" value="">
                     <input type="hidden" name="action_type" value="add_subject">
-                    <div class="md:col-span-3">
-                        <label class="block text-gray-600 text-xs font-semibold mb-1">Subject Code</label>
-                        <select id="subject_code" name="subject_code" onchange="handleSubjectSelectionChange()" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-purple-500 bg-white" required>
-                            <option value="">-- Select --</option>
-                        </select>
+                    
+                    <input type="hidden" id="subject_code" name="subject_code" value="" required>
+
+                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end border-b border-gray-200 pb-4 mb-2">
+                        <div class="md:col-span-8">
+                            <label class="block text-gray-600 text-xs font-semibold mb-1">Selected Subject Description</label>
+                            <input type="text" id="subject_title" name="subject_title" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-white text-gray-800 font-bold shadow-sm cursor-default" readonly placeholder="Click any subject card item below to select..." required>
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-gray-600 text-xs font-semibold mb-1 text-center">Units</label>
+                            <input type="number" id="subject_units" name="subject_units" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-white text-gray-800 font-black shadow-sm text-center cursor-default" readonly placeholder="0" required>
+                        </div>
+                        <div class="md:col-span-2">
+                            <button type="submit" class="w-full py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded text-sm shadow transition duration-150 transform active:scale-95">
+                                Add
+                            </button>
+                        </div>
                     </div>
-                    <div class="md:col-span-6">
-                        <label class="block text-gray-600 text-xs font-semibold mb-1">Subject Title / Description</label>
-                        <input type="text" id="subject_title" name="subject_title" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed" readonly required>
-                    </div>
-                    <div class="md:col-span-2">
-                        <label class="block text-gray-600 text-xs font-semibold mb-1">Units</label>
-                        <input type="number" id="subject_units" name="subject_units" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-gray-100 cursor-not-allowed" readonly required>
-                    </div>
-                    <div class="md:col-span-1 flex items-end">
-                        <button type="submit" class="w-full py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded text-sm shadow shadow-purple-200 transition">Add</button>
+
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-purple-800 mb-2.5">
+                            Available Curriculum Map Grid
+                        </label>
+                        <div id="modal_visual_subject_catalog" class="space-y-4 max-h-[350px] overflow-y-auto pr-1">
+                            <div class="text-xs text-gray-400 italic text-center py-6">
+                                Loading curriculum maps...
+                            </div>
+                        </div>
                     </div>
                 </form>
 
@@ -903,13 +915,15 @@ function triggerSubjectModal(btn) {
     document.getElementById('sub_program').innerText = btn.getAttribute('data-program') || '';
     document.getElementById('sub_glevel').innerText = btn.getAttribute('data-glevel') || '';
     
+    // Reset selection indicators back to clean states
+    document.getElementById('subject_code').value = '';
     document.getElementById('subject_title').value = '';
     document.getElementById('subject_units').value = '';
     
-    // Clear out dropdown selector items first
-    document.getElementById('subject_code').innerHTML = '<option value="">Loading...</option>';
+    document.getElementById('modal_visual_subject_catalog').innerHTML = 
+        '<div class="text-xs text-gray-400 italic text-center py-6">Fetching curriculum map grid. Please wait...</div>';
     
-    // Fire catalog sync routine
+    // Load visual map layout cards
     loadCatalogSubjectsDropdown(cid);
     
     fetchSubjectLoadList(csid);
@@ -929,97 +943,121 @@ function loadCatalogSubjectsDropdown(cid) {
                 activeCatalogSubjects = [];
             }
             
-            var html = '<option value="">-- Select Code --</option>';
-            activeCatalogSubjects.forEach(function(sub) {
-                html += `<option value="${escapeHtml(sub.subject_code)}">${escapeHtml(sub.subject_code)}</option>`;
-            });
-            document.getElementById('subject_code').innerHTML = html;
-        }
-    });
-}
+            var catalogContainer = $('#modal_visual_subject_catalog');
+            catalogContainer.empty();
 
-function handleSubjectSelectionChange() {
-    var codeValue = document.getElementById('subject_code').value;
-    var titleInput = document.getElementById('subject_title');
-    var unitsInput = document.getElementById('subject_units');
-    
-    if(!codeValue) {
-        titleInput.value = '';
-        unitsInput.value = '';
-        return;
-    }
-    
-    var matchedItem = activeCatalogSubjects.find(function(sub) {
-        return sub.subject_code === codeValue;
-    });
-    
-    if(matchedItem) {
-        titleInput.value = matchedItem.subject_title;
-        unitsInput.value = matchedItem.units;
-    } else {
-        titleInput.value = '';
-        unitsInput.value = '';
-    }
-}
-
-function fetchSubjectLoadList(csid) {
-    $.ajax({
-        type: 'POST',
-        url: window.location.href, 
-        data: { action_type: 'fetch_subjects', subject_csid: csid },
-        success: function(response) {
-            var data;
-            try {
-                data = parsePollutedJson(response);
-            } catch(e) {
-                console.error("JSON Clean Extraction Crash:", e, response);
-                document.getElementById('subjects_table_body').innerHTML = '<tr><td colspan="5" class="p-4 text-center text-red-500 italic">Failed to format response stream payload.</td></tr>';
+            if (!activeCatalogSubjects || activeCatalogSubjects.length === 0) {
+                catalogContainer.html('<div class="text-center text-gray-400 py-6 text-xs italic">No catalog records found under this specific program offering.</div>');
                 return;
             }
 
-            var html = '';
-            var totalTuition = 0;
-            var majorCount = 0;
-            var flatMisc = 9000;
-            
-            if(!data || data.length === 0) {
-                html = '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No subject courses added to this curriculum load yet.</td></tr>';
-            } else {
-                data.forEach(function(row) {
-                    var currentPrice = parseFloat(row.price) || 0;
-                    totalTuition += currentPrice;
-                    
-                    // Case-insensitive minor/major categorizer matching rule
-                    var codeString = String(row.subject_code).toUpperCase().trim();
-                    if (!codeString.startsWith('GE') && !codeString.startsWith('GEE')) {
-                        majorCount++;
+            // Group structures maps mapping array values
+            var structuredData = {};
+            var yearOrder = ["1st Year", "2nd Year", "3rd Year", "4th Year", "General/Unassigned Year"];
+
+            // 1. Group payloads by sorting text pattern attributes
+            activeCatalogSubjects.forEach(function(item) {
+                var fullTitle = item.subject_title || '';
+                var detectedYear = "General/Unassigned Year";
+                var detectedSem = "General Term";
+
+                var matches = fullTitle.match(/\((.*?),\s*(.*?)\)/);
+                if (matches) {
+                    detectedYear = matches[1].trim();
+                    detectedSem = matches[2].trim();
+                    fullTitle = fullTitle.replace(/\s*\(.*?\)\s*/g, '');
+                }
+
+                // Standardize semester classifications
+                if (detectedSem.toLowerCase().indexOf('1st') !== -1) detectedSem = "1st Sem";
+                if (detectedSem.toLowerCase().indexOf('2nd') !== -1) detectedSem = "2nd Sem";
+                if (detectedSem.toLowerCase().indexOf('summer') !== -1) detectedSem = "Summer";
+
+                // Standardize year parameters
+                if (detectedYear.toLowerCase().indexOf('1st') !== -1) detectedYear = "1st Year";
+                if (detectedYear.toLowerCase().indexOf('2nd') !== -1) detectedYear = "2nd Year";
+                if (detectedYear.toLowerCase().indexOf('3rd') !== -1) detectedYear = "3rd Year";
+                if (detectedYear.toLowerCase().indexOf('4th') !== -1) detectedYear = "4th Year";
+
+                if (!structuredData[detectedYear]) structuredData[detectedYear] = {};
+                if (!structuredData[detectedYear][detectedSem]) structuredData[detectedYear][detectedSem] = [];
+
+                structuredData[detectedYear][detectedSem].push({
+                    code: item.subject_code,
+                    title: fullTitle,
+                    units: item.units
+                });
+            });
+
+            // 2. Append side-by-side horizontal semester cards blocks dynamically
+            yearOrder.forEach(function(yearLabel) {
+                if (!structuredData[yearLabel]) return;
+
+                var semesterBlocks = structuredData[yearLabel];
+                
+                var yearCardHtml = `
+                    <div class="bg-white rounded-xl border border-gray-200 p-3 space-y-2.5 shadow-sm">
+                        <div class="flex items-center gap-2 text-xs font-bold uppercase text-gray-700 border-b border-gray-100 pb-1">
+                            <span class="w-1.5 h-3 bg-purple-600 rounded-full"></span>
+                            <h4>${yearLabel}</h4>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+                `;
+
+                var trackingTerms = ["1st Sem", "2nd Sem"];
+                trackingTerms.forEach(function(term) {
+                    var subsList = semesterBlocks[term] || [];
+                    var termTitle = (term === "1st Sem") ? "1st Semester" : "2nd Semester";
+
+                    yearCardHtml += `
+                        <div class="bg-gray-50 rounded-lg p-2.5 border border-gray-200/60">
+                            <div class="bg-gray-700 text-white text-[10px] font-bold px-2 py-0.5 rounded flex justify-between mb-1.5">
+                                <span>${termTitle}</span>
+                                <span class="bg-gray-600 px-1 rounded text-[9px]">${subsList.length} items</span>
+                            </div>
+                    `;
+
+                    if (subsList.length > 0) {
+                        yearCardHtml += `<div class="space-y-1 max-h-[140px] overflow-y-auto pr-0.5">`;
+                        subsList.forEach(function(sub) {
+                            yearCardHtml += `
+                                <div class="subject-clickable-row bg-white p-2 rounded border border-gray-200 hover:border-purple-400 hover:bg-purple-50/20 cursor-pointer transition flex justify-between items-center group"
+                                     data-code="${escapeHtml(sub.code)}" data-title="${escapeHtml(sub.title)}" data-units="${sub.units}">
+                                    <div class="text-xs truncate max-w-[80%]">
+                                        <div class="font-bold text-gray-900 group-hover:text-purple-700">${escapeHtml(sub.code)}</div>
+                                        <div class="text-gray-500 truncate text-[11px]">${escapeHtml(sub.title)}</div>
+                                    </div>
+                                    <span class="text-[9px] font-bold text-gray-400 bg-gray-100 group-hover:bg-purple-600 group-hover:text-white px-1.5 py-0.5 rounded transition">
+                                        Select
+                                    </span>
+                                </div>
+                            `;
+                        });
+                        yearCardHtml += `</div>`;
+                    } else {
+                        yearCardHtml += `<div class="text-[10px] text-gray-400 italic text-center py-3">No subjects allocated.</div>`;
                     }
 
-                    html += `<tr class="hover:bg-gray-50 transition border-b border-gray-100">
-                        <td class="p-3 font-semibold text-purple-900">${escapeHtml(row.subject_code)}</td>
-                        <td class="p-3 text-gray-700">${escapeHtml(row.subject_title)}</td>
-                        <td class="p-3 text-center font-bold text-gray-600">${row.units}</td>
-                        <td class="p-3 text-right font-medium text-gray-700">${currentPrice.toFixed(2)} PHP</td>
-                        <td class="p-3 text-center">
-                            <button type="button" onclick="removeSubjectFromLoad(${row.ssid}, ${csid})" class="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
-                        </td>
-                    </tr>`;
+                    yearCardHtml += `</div>`;
                 });
-            }
-            document.getElementById('subjects_table_body').innerHTML = html;
-            
-            // Core Assessment Calculation Block
-            var totalLab = majorCount * 540;
-            var grandTotal = totalTuition + flatMisc + totalLab;
-            
-            // Push calculated values to the DOM Summary elements
-            document.getElementById('fee_tuition').innerText = totalTuition.toFixed(2) + " PHP";
-            document.getElementById('major_count').innerText = majorCount;
-            document.getElementById('fee_lab').innerText = totalLab.toFixed(2) + " PHP";
-            document.getElementById('fee_total').innerText = grandTotal.toFixed(2) + " PHP";
-        },
-        error: function(xhr) {
-            console.error("Fetch Failure Status:", xhr.statusText);
+
+                yearCardHtml += `</div></div>`;
+                catalogContainer.append(yearCardHtml);
+            });
+
+            // 3. User points and selects card row callback hook values matching inputs
+            $('.subject-clickable-row').on('click', function() {
+                var subCode  = $(this).data('code');
+                var subTitle = $(this).data('title');
+                var subUnits = $(this).data('units');
+
+                $('#subject_code').val(subCode);
+                $('#subject_title').val(subTitle);
+                $('#subject_units').val(subUnits);
+
+                $('.subject-clickable-row').removeClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+                $(this).addClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+            });
         }
     });
 }
@@ -1040,9 +1078,13 @@ function saveSubjectLoad(e) {
                 console.error("Layout Pollution Handled Safely:", response);
             }
             
+            // Re-zero entry selectors layout properties states
             document.getElementById('subject_code').value = '';
             document.getElementById('subject_title').value = '';
             document.getElementById('subject_units').value = '';
+            
+            $('.subject-clickable-row').removeClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+            
             fetchSubjectLoadList(csid);
         },
         error: function(xhr, status, error) {
