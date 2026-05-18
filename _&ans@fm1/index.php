@@ -68,7 +68,7 @@ session_start();
     <div id="left" class="w-64 bg-gradient-to-b from-green-700 to-green-900 shadow-lg overflow-y-auto">
         <div class="p-4 border-b border-green-600">
             <a href="<?php echo accls()."/"?>" class="flex items-center justify-center">
-                <img src="../img/logo1.jpg" class="w-full h-auto rounded" alt="ACC Logo" />
+                <img src="logo.png" class="w-full h-auto rounded" alt="ACC Logo" />
             </a>
         </div>
         <?php include "navbar.php";?>
@@ -97,7 +97,6 @@ session_start();
         <div id="content" class="flex-1 overflow-y-auto p-6">
 			<?php
 				if(isset($_GET['_a!%@1!2%'])){$pgload=$_GET['_a!%@1!2%'];}else{$pgload="";}				
-				//$link=decCode($lnk);
 				$pgload=decCode($pgload);
 				if($pgload=="schoolyear"){
 					include "sy/sy.php";				
@@ -110,7 +109,7 @@ session_start();
 				}elseif($pgload=="collegestudents"){
 					include "students/colstudents.php";
 				}elseif($pgload=="subjectscatalog"){
-                    include "students/subjects_catalog.php"; // New Catalog View
+                    include "students/subjects_catalog.php";
 				}elseif($pgload=="status"){
 					include "status/stats.php";
 				}elseif($pgload=="Departments"){
