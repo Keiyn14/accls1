@@ -30,12 +30,47 @@ if(isset($_POST['action_type'])){
         $csid = intval($_POST['subject_csid']);
         $subCode = $dbcon->real_escape_string(trim($_POST['subject_code']));
         
-        // 1. Locate student program identifier (cid) context securely
+        // 1. Get the current active school year and semester variables directly from app parameters
+        // These track exactly what term badge matches your system configurations
+        $syQry = $dbcon->query("SELECT syid FROM sy WHERE status='Active' LIMIT 1");
+        $semQry = $dbcon->query("SELECT sid FROM sem WHERE status='Active' LIMIT 1");
+        $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
+        $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
+
+        // 2. 🛡️ PREVIOUS SEMESTER OUTSTANDING BALANCE CHECKER
+        // Scans all previous ledger terms to check for outstanding debt balances
+        $balanceCheck = $dbcon->query("
+            SELECT b.*, sy.syname, sem.semester 
+            FROM student_balances b
+            JOIN sy ON b.syid = sy.syid
+            JOIN sem ON b.sid = sem.sid
+            WHERE b.csid = $csid 
+              AND (b.total_fee - b.amount_paid) > 0
+              AND NOT (b.syid = $current_syid AND b.sid = $current_sid)
+        ");
+
+        if($balanceCheck && $balanceCheck->num_rows > 0) {
+            $arrears = [];
+            while($bRow = $balanceCheck->fetch_assoc()){
+                $arrears[] = [
+                    'term' => $bRow['syname'] . " (" . $bRow['semester'] . ")",
+                    'balance' => floatval($bRow['total_fee'] - $bRow['amount_paid'])
+                ];
+            }
+            // Block data propagation and return array details safely to Javascript client handlers
+            echo json_encode([
+                "status" => "blocked", 
+                "message" => "Student has an outstanding balance from a previous term.", 
+                "records" => $arrears
+            ]);
+            exit();
+        }
+
+        // 3. Check for exact matching subject within the curriculum list
         $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
         $studentData = $studentQry->fetch_assoc();
         $cid = intval($studentData['cid'] ?? 0);
         
-        // 2. Query pristine master properties directly from your catalog table row
         $catalogQry = $dbcon->query("SELECT subject_title, units, price FROM subjects WHERE subject_code = '$subCode' AND cid = $cid LIMIT 1");
         
         if($catalogQry && $catalogQry->num_rows > 0) {
@@ -44,19 +79,37 @@ if(isset($_POST['action_type'])){
             $subUnits = intval($catalog['units']);
             $subPrice = floatval($catalog['price']);
             
+            // Auto-upgrade structure column definitions to hold historical markers
             $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
                 ssid INT AUTO_INCREMENT PRIMARY KEY,
                 csid INT NOT NULL,
+                syid INT NOT NULL,
+                sid INT NOT NULL,
                 subject_code VARCHAR(50) NOT NULL,
                 subject_description VARCHAR(255) NOT NULL,
                 units INT NOT NULL,
                 price DECIMAL(10,2) NOT NULL DEFAULT 0.00
             )");
             
-            $query = "INSERT INTO student_subjects (csid, subject_code, subject_description, units, price) 
-                      VALUES ($csid, '$subCode', '$subDesc', $subUnits, $subPrice)";
+            // Check for direct registration row duplicates before insertion 
+            $duplicateCheck = $dbcon->query("SELECT ssid FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid AND subject_code = '$subCode'");
+            if($duplicateCheck && $duplicateCheck->num_rows > 0) {
+                echo json_encode(["status" => "error", "message" => "This subject is already registered under this student's active enrollment term schedule."]);
+                exit();
+            }
+
+            // Save the subject under the active School Year ($current_syid) and Semester ($current_sid)
+            $query = "INSERT INTO student_subjects (csid, syid, sid, subject_code, subject_description, units, price) 
+                      VALUES ($csid, $current_syid, $current_sid, '$subCode', '$subDesc', $subUnits, $subPrice)";
                       
             if($dbcon->query($query)){
+                // Keep ledger accounts calculated up to date
+                $dbcon->query("
+                    INSERT INTO student_balances (csid, syid, sid, total_fee, amount_paid)
+                    VALUES ($csid, $current_syid, $current_sid, $subPrice, 0.00)
+                    ON DUPLICATE KEY UPDATE total_fee = total_fee + $subPrice
+                ");
+
                 echo json_encode(["status" => "success"]);
             } else {
                 echo json_encode(["status" => "error", "message" => $dbcon->error]);
@@ -71,16 +124,25 @@ if(isset($_POST['action_type'])){
         $csid = intval($_POST['subject_csid']);
         $output = [];
         
+        // Dynamic fetch matching the current active school year and semester configuration context rules
+        $syQry = $dbcon->query("SELECT syid FROM sy WHERE status='Active' LIMIT 1");
+        $semQry = $dbcon->query("SELECT sid FROM sem WHERE status='Active' LIMIT 1");
+        $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
+        $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
+
         $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
             ssid INT AUTO_INCREMENT PRIMARY KEY,
             csid INT NOT NULL,
+            syid INT NOT NULL,
+            sid INT NOT NULL,
             subject_code VARCHAR(50) NOT NULL,
             subject_description VARCHAR(255) NOT NULL,
             units INT NOT NULL,
             price DECIMAL(10,2) NOT NULL DEFAULT 0.00
         )");
 
-        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid ORDER BY ssid DESC");
+        // Crucial Update: Filter using current syid and sid so history isn't overwritten or displayed unexpectedly
+        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid ORDER BY ssid DESC");
         if($res){
             while($r = $res->fetch_assoc()){
                 $output[] = [
@@ -440,8 +502,28 @@ if(isset($_POST['action_type'])){
             <select id="filterProgram" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
                 <option value="">All Programs</option>
                 <?php
-                $fRes=$dbcon->query("SELECT program FROM offerings GROUP BY program");
-                while($f=$fRes->fetch_assoc()) echo "<option value='".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
+                // 1. 🎯 CHANGE THIS NUMBER: Set this to the exact ID (cid) of Computer Science in your database
+                $default_cid = 2; 
+
+                // 2. Dynamic Lookup: Fetch the exact program string name using that ID
+                $defaultProgramName = '';
+                $lookUp = $dbcon->query("SELECT program FROM offerings WHERE cid = $default_cid LIMIT 1");
+                if($lookUp && $row = $lookUp->fetch_assoc()) {
+                    $defaultProgramName = $row['program'];
+                }
+
+                // 3. Loop and render options dynamically
+                $fRes = $dbcon->query("SELECT program FROM offerings GROUP BY program");
+                while($f = $fRes->fetch_assoc()) {
+                    $programName = $f['program'] ?? '';
+                    
+                    // Match against our dynamically fetched program name
+                    $selected = ($programName === $defaultProgramName && $defaultProgramName !== '') ? 'selected' : '';
+                    
+                    echo "<option value='".htmlspecialchars($programName, ENT_QUOTES, 'UTF-8')."' $selected>"
+                            .htmlspecialchars($programName, ENT_QUOTES, 'UTF-8').
+                        "</option>";
+                }
                 ?>
             </select>
             <select id="filterLevel" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
@@ -762,7 +844,7 @@ if(isset($_POST['action_type'])){
 
                 <div class="overflow-x-auto border border-gray-200 rounded-lg max-h-[260px] overflow-y-auto bg-white mb-4">
                     <table class="w-full text-left text-sm">
-                        <<thead>
+                        <thead>
                             <tr class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
                                 <th class="p-3 text-left">Subject Code</th>
                                 <th class="p-3 text-left">Subject Title</th>
@@ -814,6 +896,41 @@ if(isset($_POST['action_type'])){
                 </div>
             </div>
         </form>
+    </div>
+</div>
+
+<div class="modal-overlay print-hide" id="balanceHoldModal" style="display:none; z-index: 2500;">
+    <div class="modal-dialog modal-dialog-sm">
+        <div class="modal-content border-2 border-red-500">
+            <div class="bg-gradient-to-r from-red-700 to-red-600 px-6 py-4 flex justify-between items-center">
+                <h4 class="text-lg font-bold text-white flex items-center gap-2">
+                    ⚠️ Enrollment Blocked
+                </h4>
+                <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('balanceHoldModal')">&times;</button>
+            </div>
+            <div class="modal-body p-6">
+                <p class="text-gray-700 font-medium mb-3 text-sm">
+                    This student has existing balances from previous academic terms. Please settle all remaining balances before adding new subjects.
+                </p>
+                <div class="max-h-48 overflow-y-auto border rounded-lg shadow-inner">
+                    <table class="w-full text-left text-xs border-collapse">
+                        <thead>
+                            <tr class="bg-red-50 text-red-800 uppercase font-bold border-b">
+                                <th class="p-2.5">Academic Term</th>
+                                <th class="p-2.5 text-right">Balance Due</th>
+                            </tr>
+                        </thead>
+                        <tbody id="holdBalanceLogs" class="divide-y text-gray-600 bg-white">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer bg-gray-50 flex justify-end p-3 rounded-b-lg">
+                <button type="button" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold text-sm rounded-lg transition duration-150 shadow" onclick="closeModal('balanceHoldModal')">
+                    Acknowledge
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -926,6 +1043,7 @@ function triggerSubjectModal(btn) {
     // Load visual map layout cards
     loadCatalogSubjectsDropdown(cid);
     
+    // ✅ FIX: Correctly calls the existing list-loading engine right as the modal initializes
     fetchSubjectLoadList(csid);
     openModal('subjectModal');
 }
@@ -1047,7 +1165,7 @@ function loadCatalogSubjectsDropdown(cid) {
     });
 }
 
-// 🚀 EVENT DELEGATION: Fixes the non-clickable issue by tracking dynamically rendered elements smoothly
+// 🚀 EVENT DELEGATION: Tracks dynamically rendered elements smoothly
 $(document).on('click', '.subject-clickable-row', function() {
     var subCode  = $(this).attr('data-code');
     var subTitle = $(this).attr('data-title');
@@ -1093,14 +1211,11 @@ function fetchSubjectLoadList(csid) {
                         majorCount++;
                     }
 
-                    // Locate this block inside your fetchSubjectLoadList function and update the classes:
                     html += `<tr class="hover:bg-gray-50 transition border-b border-gray-100">
                         <td class="p-3 font-semibold text-purple-900">${escapeHtml(row.subject_code)}</td>
                         <td class="p-3 text-gray-700">${escapeHtml(row.subject_title)}</td>
                         <td class="p-3 text-center font-bold text-gray-600">${row.units}</td>
-                        
                         <td class="p-3 text-right font-medium text-gray-700 print:hidden print-hide">${currentPrice.toFixed(2)} PHP</td>
-                        
                         <td class="p-3 text-center print:hidden print-hide">
                             <button type="button" onclick="removeSubjectFromLoad(${row.ssid}, ${csid})" class="text-red-500 hover:text-red-700 font-bold text-lg">&times;</button>
                         </td>
@@ -1125,6 +1240,13 @@ function fetchSubjectLoadList(csid) {
 
 function saveSubjectLoad(e) {
     e.preventDefault();
+    
+    var subCode = $('#subject_code').val();
+    if(!subCode || subCode.trim() === "") {
+        alert("Please select a subject card from the curriculum chart first.");
+        return;
+    }
+
     var formData = $('#ajaxSubjectForm').serialize();
     var csid = document.getElementById('subject_csid').value;
     
@@ -1135,16 +1257,36 @@ function saveSubjectLoad(e) {
         success: function(response) {
             try {
                 var res = parsePollutedJson(response);
+                
+                // 🛑 CHECK BALANCE HOLD ACTION STATUS INTERCEPTION
+                if (res && res.status === "blocked") {
+                    var container = $('#holdBalanceLogs');
+                    container.empty();
+                    
+                    res.records.forEach(function(item) {
+                        var row = '<tr class="border-b">' +
+                            '<td class="p-2.5 font-semibold text-gray-700">' + item.term + '</td>' +
+                            '<td class="p-2.5 text-right text-red-600 font-bold">₱' + parseFloat(item.balance).toFixed(2) + ' PHP</td>' +
+                        '</tr>';
+                        container.append(row);
+                    });
+                    
+                    // Reveal the Balance Restriction Popup
+                    openModal('balanceHoldModal');
+                    return; // Prevent form field reset on restriction block
+                }
             } catch(err) {
                 console.error("Layout Pollution Handled Safely:", response);
             }
             
+            // Clear selections upon confirmed success row insertion
             document.getElementById('subject_code').value = '';
             document.getElementById('subject_title').value = '';
             document.getElementById('subject_units').value = '';
             
             $('.subject-clickable-row').removeClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
             
+            // Refresh table
             fetchSubjectLoadList(csid);
         },
         error: function(xhr, status, error) {
@@ -1152,22 +1294,6 @@ function saveSubjectLoad(e) {
             alert("Network Error: Connection failed to reach backend processing layer.");
         }
     });
-}
-
-function removeSubjectFromLoad(ssid, csid) {
-    if(confirm("Are you sure you want to drop this subject from the record load configuration?")) {
-        $.ajax({
-            type: 'POST',
-            url: window.location.href,
-            data: { action_type: 'remove_subject', ssid: ssid },
-            success: function(response) {
-                fetchSubjectLoadList(csid);
-            },
-            error: function(xhr) {
-                console.error("Drop Request Failure:", xhr.responseText);
-            }
-        });
-    }
 }
 
 function removeSubjectFromLoad(ssid, csid) {
@@ -1213,11 +1339,8 @@ function printSubjectSummary() {
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
             th { font-weight: bold; background-color: #f3f4f6; }
-            
-            /* 🚀 FORCE HIDE BOTH THE 4TH (PRICE) AND 5TH (ACTIONS) CELLS IN THE EXTRACTED ROW MARKUP */
             th:nth-child(4), td:nth-child(4) { display: none !important; }
             th:nth-child(5), td:nth-child(5) { display: none !important; }
-            
             .footer { margin-top: 50px; display: flex; justify-content: flex-end; font-size: 13px; }
             .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; width: 180px; display: inline-block; padding-bottom: 2px; }
         </style>
@@ -1246,7 +1369,6 @@ function printSubjectSummary() {
             </thead>
             <tbody>${tableHTML}</tbody>
         </table>
-
         <div class="footer"><div><p>Issued by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
         <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
     </body>
@@ -1325,6 +1447,7 @@ $(document).ready(function() {
         $('#dataTables-example').DataTable().destroy();
     }
 
+    // 1. Initialize the core DataTable configuration settings
     var table = $('#dataTables-example').DataTable({
         "responsive": true,
         "pageLength": 10,
@@ -1337,6 +1460,7 @@ $(document).ready(function() {
         }
     });
 
+    // 2. Setup your event listener bindings
     $('#selectAllCheckboxes').on('change', function() {
         var isChecked = $(this).is(':checked');
         table.$('.student-checkbox').prop('checked', isChecked);
@@ -1347,6 +1471,7 @@ $(document).ready(function() {
         updateBulkDeleteButton();
     });
 
+    // 3. Register the custom search lookup rule FIRST
     $.fn.dataTable.ext.search.push(
         function(settings, data, dataIndex) {
             if (settings.nTable.id !== 'dataTables-example') return true; 
@@ -1366,5 +1491,8 @@ $(document).ready(function() {
     $('#filterProgram, #filterLevel').on('change', function() {
         table.draw();
     });
+
+    // 4. 🔥 FIXED: Execute table.draw() down here AFTER the rules are registered!
+    table.draw();
 });
 </script>

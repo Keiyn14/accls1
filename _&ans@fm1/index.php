@@ -1,5 +1,4 @@
-﻿
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -9,19 +8,14 @@
     <meta name="author" content="ACC" />
     <link rel="icon" href="../img/logo.ico" type="image/x-icon">
     
-    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
-    <!-- Font Awesome Icons -->
     <link rel="stylesheet" href="../assets/plugins/Font-Awesome/css/font-awesome.css" />
     
-    <!-- jQuery -->
     <script src="../assets/js/jquery-3.7.1.min.js"></script>
     
-    <!-- DataTables -->
     <link href="../assets/plugins/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
     
-    <!-- Custom Tailwind Config -->
     <style>
         :root {
             --primary-green: #10b981;
@@ -63,18 +57,14 @@
         }
     </style>
 </head>
-    <!-- END HEAD -->
-    <!-- BEGIN BODY -->
-<body class="bg-gray-50">
+    <body class="bg-gray-50">
 <?php
 include "../inc/functions.php";
 include "../inc/mysqli_connect.php";
 session_start();
 ?>
 
-<!-- MAIN WRAPPER -->
 <div class="flex h-screen bg-gray-50">
-    <!-- LEFT SIDEBAR -->
     <div id="left" class="w-64 bg-gradient-to-b from-green-700 to-green-900 shadow-lg overflow-y-auto">
         <div class="p-4 border-b border-green-600">
             <a href="<?php echo accls()."/"?>" class="flex items-center justify-center">
@@ -84,21 +74,26 @@ session_start();
         <?php include "navbar.php";?>
     </div>
 
-    <!-- MAIN CONTENT WRAPPER -->
     <div class="flex-1 flex flex-col overflow-hidden">
-        <!-- TOP HEADER -->
         <nav class="bg-white shadow-md border-b-4 border-green-600">
             <div class="px-6 py-4 flex justify-between items-center">
                 <div class="flex items-center">
                     <h1 class="text-2xl font-bold text-gray-800">ACC Ledger System</h1>
                 </div>
                 <div class="text-gray-600 text-sm">
-                    <span class="font-semibold">Welcome back!</span>
+                    <span class="font-semibold">
+                        <?php 
+                        if (isset($_SESSION['role']) && $_SESSION['role'] == '1') {
+                            echo 'Welcome Back <span class="text-emerald-600 font-bold bg-emerald-50 px-2.5 py-1 rounded-md border border-emerald-200 shadow-sm ml-1">Administrator</span>';
+                        } else {
+                            echo 'Welcome back!';
+                        }
+                        ?>
+                    </span>
                 </div>
             </div>
         </nav>
 
-        <!-- PAGE CONTENT -->
         <div id="content" class="flex-1 overflow-y-auto p-6">
 			<?php
 				if(isset($_GET['_a!%@1!2%'])){$pgload=$_GET['_a!%@1!2%'];}else{$pgload="";}				
@@ -135,12 +130,8 @@ session_start();
 				}
 			?>
         </div>
-       <!--END PAGE CONTENT -->
-    </div>
+       </div>
 </div>
-<!--END MAIN WRAPPER -->
-
-<!-- PAGE LEVEL SCRIPTS -->
 <script src="../assets/plugins/dataTables/jquery.dataTables.js"></script>
 <script src="../assets/plugins/dataTables/dataTables.bootstrap.js"></script>
 <script src="../assets/js/jquery-ui.min.js"></script>
@@ -163,3 +154,4 @@ session_start();
 </script>
 
 </body>
+</html>

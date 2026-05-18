@@ -79,11 +79,11 @@ $defaultPic = "../assets/logo.png";
         <div class="flex flex-wrap gap-3 items-center">
             <div class="text-sm font-bold text-gray-500 uppercase tracking-wider">Reports Filter Board:</div>
             
-            <select id="reportDept" class="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500">
-                <option value="">All Departments</option>
+            <select id="reportProgram" class="px-4 py-2 border border-gray-300 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500">
+                <option value="">All Programs</option>
                 <?php
-                $dRes = $dbcon->query("SELECT department FROM departments ORDER BY department ASC");
-                while($d = $dRes->fetch_assoc()) echo "<option value='".htmlspecialchars($d['department'], ENT_QUOTES)."'>".htmlspecialchars($d['department'], ENT_QUOTES)."</option>";
+                $pRes = $dbcon->query("SELECT program FROM offerings GROUP BY program ORDER BY program ASC");
+                while($p = $pRes->fetch_assoc()) echo "<option value='".htmlspecialchars($p['program'], ENT_QUOTES)."'>".htmlspecialchars($p['program'], ENT_QUOTES)."</option>";
                 ?>
             </select>
 
@@ -137,7 +137,7 @@ $defaultPic = "../assets/logo.png";
                                    (SELECT COUNT(*) FROM student_subjects WHERE csid = cs.csid) as subject_count,
                                    (SELECT IFNULL(SUM(price), 0) FROM student_subjects WHERE csid = cs.csid) as total_tuition,
                                    (SELECT COUNT(*) FROM student_subjects WHERE csid = cs.csid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%') as major_count,
-                                   (SELECT IFNULL(SUM(amount), 0) FROM ledger WHERE csid = cs.csid) as total_paid
+                                   (SELECT IFNULL(SUM(amount), 0) FROM ledger WHERE csid=cs.csid AND syid=cs.syid AND sid=cs.sid) as total_paid
                                    FROM students cs ORDER BY cs.csid DESC";
                                    
                         $resSQL = $dbcon->query($strSQL);
@@ -262,15 +262,15 @@ $(document).ready(function(){
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
         if (settings.nTable.id !== 'dataTables-example') return true; 
 
-        var dSel = $('#reportDept').val() || '';
+        var pSel = $('#reportProgram').val() || '';
         var sySel = $('#reportSY').val() || '';
         var semSel = $('#reportSem').val() || '';
 
-        var rowDept = (data[4] || '').trim(); 
+        var rowProgram = (data[3] || '').trim(); // Index 3 targets the visible 'Course/Program' column
         var rowSY = (data[5] || '').trim();   
         var rowSem = (data[6] || '').trim();  
 
-        if (dSel !== '' && rowDept !== dSel.trim()) return false;
+        if (pSel !== '' && rowProgram !== pSel.trim()) return false;
         if (sySel !== '' && rowSY !== sySel.trim()) return false;
         if (semSel !== '' && rowSem !== semSel.trim()) return false;
 
