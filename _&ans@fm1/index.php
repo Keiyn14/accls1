@@ -68,7 +68,7 @@ session_start();
     <div id="left" class="w-64 bg-gradient-to-b from-green-700 to-green-900 shadow-lg overflow-y-auto">
         <div class="p-4 border-b border-green-600">
             <a href="<?php echo accls()."/"?>" class="flex items-center justify-center">
-                <img src="logo.png" class="w-full h-auto rounded" alt="ACC Logo" />
+                <img src="../assets/logo1.png" class="w-full h-auto rounded" alt="ACC Logo" />
             </a>
         </div>
         <?php include "navbar.php";?>
