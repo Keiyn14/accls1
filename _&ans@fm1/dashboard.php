@@ -14,20 +14,22 @@ $csData = $resCS->fetch_assoc();
 $sid = $csData['sid'] ?? 0;
 $sem = $csData['semester'] ?? 'None Active';
 
-// --- 🎯 COLLEGE COUNTER ENGINE ---
-$strCol = "SELECT count(csid) as college FROM students WHERE did=1";
+// --- 🎯 COLLEGE COUNTER ENGINE (Filtered by Active SY & Semester) ---
+$strCol = "SELECT count(csid) as college FROM students WHERE did=1 AND syid=$syid AND sid=$sid";
 $colRes = $dbcon->query($strCol);
 $colData = $colRes->fetch_assoc();
 $college = intval($colData['college'] ?? 0);
 
-// College Programs Count
+// College Programs Count (offerings is a static table — no SY/Sem filter needed)
 $strCP = "SELECT count(did) as colprog FROM offerings WHERE did=1";
 $cpRes = $dbcon->query($strCP);
 $cpData = $cpRes->fetch_assoc();
 $cProg = $cpData['colprog'];
 
-// Sourced globally across all terms to ensure matching chart data reflects properly
-$totalColPaymentsQ = "SELECT SUM(l.amount) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.did=1";
+// Total Payments — filtered to active SY & Semester via ledger fields
+$totalColPaymentsQ = "SELECT SUM(l.amount) as total_paid FROM ledger l 
+    INNER JOIN students s ON l.csid = s.csid 
+    WHERE s.did=1 AND l.syid=$syid AND l.sid=$sid";
 $tcpRes = $dbcon->query($totalColPaymentsQ);
 $tcpData = $tcpRes->fetch_assoc();
 $total_collection = floatval($tcpData['total_paid'] ?? 0.00);
@@ -39,7 +41,7 @@ $chartLabels = [];
 $chartEnrolled = [];
 $chartPayments = [];
 
-// Compile College Records
+// Compile College Records (offerings is static — filter SY/Sem on students & ledger instead)
 $sColQ = "SELECT cid, program FROM offerings WHERE did=1 ORDER BY program ASC";
 $colQRes = $dbcon->query($sColQ);
 
@@ -47,13 +49,15 @@ while($cRow = $colQRes->fetch_assoc()){
     $cid = $cRow['cid'];
     $chartLabels[] = $cRow['program'];
     
-    // Count ALL students in this specific program (cid)
-    $eRes = $dbcon->query("SELECT COUNT(csid) as total FROM students WHERE cid=$cid");
+    // Count students in this program for active SY & Semester only
+    $eRes = $dbcon->query("SELECT COUNT(csid) as total FROM students WHERE cid=$cid AND syid=$syid AND sid=$sid");
     $eData = $eRes->fetch_assoc();
     $chartEnrolled[] = intval($eData['total'] ?? 0);
     
-    // Payments Calculator (Sourced securely via l.amount field attribute)
-    $pRes = $dbcon->query("SELECT SUM(l.amount) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.cid=$cid");
+    // Payments for this program filtered by active SY & Semester
+    $pRes = $dbcon->query("SELECT SUM(l.amount) as total_paid FROM ledger l 
+        INNER JOIN students s ON l.csid = s.csid 
+        WHERE s.cid=$cid AND l.syid=$syid AND l.sid=$sid");
     $pData = $pRes->fetch_assoc();
     $chartPayments[] = floatval($pData['total_paid'] ?? 0.00);
 }
@@ -77,13 +81,53 @@ while($cRow = $colQRes->fetch_assoc()){
 }
 </style>
 
-<div class="mb-8">
-	<h1 class="text-3xl font-bold text-gray-800 mb-2">College Dashboard</h1>
-	<div class="flex gap-4 text-sm text-gray-600">
-		<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">School Year: <?php echo $sy;?></span>
-		<span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">Semester: <?php echo $sem;?></span>
+<div class="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+
+	<!-- Left: Title + SY/Semester Badges -->
+	<div>
+		<h1 class="text-3xl font-bold text-gray-800 mb-4">College Dashboard</h1>
+		<div class="flex flex-wrap gap-4">
+			<div class="flex items-center gap-3 bg-green-600 text-white px-5 py-3 rounded-2xl shadow-lg">
+				<i class="icon-calendar text-3xl text-green-200"></i>
+				<div class="leading-snug">
+					<p class="text-xs font-bold text-green-200 uppercase tracking-widest">School Year</p>
+					<p class="text-xl font-extrabold"><?php echo $sy; ?></p>
+				</div>
+			</div>
+			<div class="flex items-center gap-3 bg-blue-600 text-white px-5 py-3 rounded-2xl shadow-lg">
+				<i class="icon-book text-3xl text-blue-200"></i>
+				<div class="leading-snug">
+					<p class="text-xs font-bold text-blue-200 uppercase tracking-widest">Semester</p>
+					<p class="text-xl font-extrabold"><?php echo $sem; ?></p>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<!-- Right: Philippine Live Clock -->
+	<div class="flex-shrink-0 bg-white border-2 border-gray-200 rounded-2xl shadow-lg px-7 py-4 text-right min-w-[220px]">
+		<p class="text-xs font-bold text-gray-400 uppercase tracking-widest mb-1">🇵🇭 Philippine Standard Time</p>
+		<p id="ph-time" class="text-4xl font-extrabold text-gray-800 tabular-nums tracking-tight leading-none"></p>
+		<p id="ph-date" class="text-base font-semibold text-gray-500 mt-1"></p>
 	</div>
 </div>
+
+<script>
+(function () {
+    function updatePHClock() {
+        const now = new Date();
+        const opts = { timeZone: 'Asia/Manila' };
+        const time = now.toLocaleTimeString('en-PH', { ...opts, hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true });
+        const date = now.toLocaleDateString('en-PH', { ...opts, weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+        const tEl = document.getElementById('ph-time');
+        const dEl = document.getElementById('ph-date');
+        if (tEl) tEl.textContent = time;
+        if (dEl) dEl.textContent = date;
+    }
+    updatePHClock();
+    setInterval(updatePHClock, 1000);
+})();
+</script>
 
 <div class="mb-10">
     <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Quick Navigation Actions</h3>

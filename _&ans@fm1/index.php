@@ -7,73 +7,49 @@
     <meta name="description" content="ACC Ledger Management System" />
     <meta name="author" content="ACC" />
     <link rel="icon" href="../img/logo.ico" type="image/x-icon">
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <link rel="stylesheet" href="../assets/plugins/Font-Awesome/css/font-awesome.css" />
-    
     <script src="../assets/js/jquery-3.7.1.min.js"></script>
-    
     <link href="../assets/plugins/dataTables/dataTables.bootstrap.css" rel="stylesheet" />
-    
     <style>
-        :root {
-            --primary-green: #10b981;
-            --dark-green: #059669;
-            --light-green: #d1fae5;
-        }
-        
-        * {
-            scroll-behavior: smooth;
-        }
-        
-        body {
-            @apply bg-gray-50;
-        }
-        
-        .sidebar-open #content {
-            @apply ml-64;
-        }
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 50;
-            display: none;
-            align-items: center;
-            justify-content: center;
-            background: rgba(15, 23, 42, 0.7);
-            padding: 1.5rem;
-        }
-        .modal-overlay.active {
-            display: flex;
-        }
-        .modal-overlay .modal-content {
-            max-width: 760px;
-            width: 100%;
-            border-radius: 1rem;
-            background: #ffffff;
-            overflow: hidden;
-            box-shadow: 0 35px 60px rgba(0, 0, 0, 0.18);
-        }
+        :root { --primary-green: #10b981; --dark-green: #059669; --light-green: #d1fae5; }
+        * { scroll-behavior: smooth; }
+        body { @apply bg-gray-50; }
+        .sidebar-open #content { @apply ml-64; }
+        .modal-overlay { position: fixed; inset: 0; z-index: 50; display: none; align-items: center; justify-content: center; background: rgba(15, 23, 42, 0.7); padding: 1.5rem; }
+        .modal-overlay.active { display: flex; }
+        .modal-overlay .modal-content { max-width: 760px; width: 100%; border-radius: 1rem; background: #ffffff; overflow: hidden; box-shadow: 0 35px 60px rgba(0, 0, 0, 0.18); }
     </style>
 </head>
-    <body class="bg-gray-50">
+<body class="bg-gray-50">
 <?php
 include "../inc/functions.php";
 include "../inc/mysqli_connect.php";
 session_start();
+
+// 🔒 ANTI-CACHE HEADERS: Force the browser to never serve a stale cached copy.
+// Without these, pressing Back shows the old page from cache, bypassing PHP entirely.
+header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+header("Pragma: no-cache");
+header("Expires: Sat, 01 Jan 2000 00:00:00 GMT");
+
+// 🔒 SECURITY GATE: Block unauthenticated access entirely.
+// If no valid session exists, redirect immediately to login — no exceptions.
+if (!isset($_SESSION['uid']) || empty($_SESSION['uid'])) {
+    header("Location: " . accls() . "/login.php");
+    exit();
+}
 ?>
 
 <div class="flex h-screen bg-gray-50">
     <div id="left" class="w-64 bg-gradient-to-b from-green-700 to-green-900 shadow-lg overflow-y-auto">
         <div class="p-4 border-b border-green-600">
-            <a href="<?php echo accls()."/"?>" class="flex items-center justify-center">
+            <a href="<?php echo accls().'/_&ans@fm1/'; ?>" class="flex items-center justify-center">
                 <img src="../assets/logo1.png" class="w-full h-auto rounded" alt="ACC Logo" />
             </a>
         </div>
         <?php include "navbar.php";?>
     </div>
-
     <div class="flex-1 flex flex-col overflow-hidden">
         <nav class="bg-white shadow-md border-b-4 border-green-600">
             <div class="px-6 py-4 flex justify-between items-center">
@@ -93,64 +69,42 @@ session_start();
                 </div>
             </div>
         </nav>
-
         <div id="content" class="flex-1 overflow-y-auto p-6">
-			<?php
-				if(isset($_GET['_a!%@1!2%'])){$pgload=$_GET['_a!%@1!2%'];}else{$pgload="";}				
-				$pgload=decCode($pgload);
-				if($pgload=="schoolyear"){
-					include "sy/sy.php";				
-				}elseif($pgload=="semester"){
-					include "sem/sem.php";
-				}elseif($pgload=="offerings"){
-					include "offerings/offerings.php";
-				}elseif($pgload=="gradelevel"){
-					include "glevel/gradelevel.php";
-				}elseif($pgload=="collegestudents"){
-					include "students/colstudents.php";
-				}elseif($pgload=="subjectscatalog"){
-                    include "students/subjects_catalog.php";
-				}elseif($pgload=="status"){
-					include "status/stats.php";
-				}elseif($pgload=="Departments"){
-					include "departments/department.php";
-				}elseif($pgload=="collegeledger"){
-					include "ledger/college.php";
-				}elseif($pgload=="shsledger"){
-					include "ledger/shs.php";
-				}elseif($pgload=="ledgermonitoring"){
-					include "ledger/ldgrmonitoring.php";
-				}elseif($pgload=="userroles"){
-					include "users/role.php";
-				}elseif($pgload=="ledgerusers"){
-					include "users/users.php";
-				}else{
-					include "dashboard.php";
-				}
-			?>
+            <?php
+                if(isset($_GET['_a!%@1!2%'])){$pgload=$_GET['_a!%@1!2%'];}else{$pgload="";}
+                $pgload=decCode($pgload);
+                if($pgload=="schoolyear"){ include "sy/sy.php";
+                }elseif($pgload=="semester"){ include "sem/sem.php";
+                }elseif($pgload=="offerings"){ include "offerings/offerings.php";
+                }elseif($pgload=="gradelevel"){ include "glevel/gradelevel.php";
+                }elseif($pgload=="collegestudents"){ include "students/colstudents.php";
+                }elseif($pgload=="subjectscatalog"){ include "students/subjects_catalog.php";
+                }elseif($pgload=="status"){ include "status/stats.php";
+                }elseif($pgload=="Departments"){ include "departments/department.php";
+                }elseif($pgload=="collegeledger"){ include "ledger/college.php";
+                }elseif($pgload=="shsledger"){ include "ledger/shs.php";
+                }elseif($pgload=="ledgermonitoring"){ include "ledger/ldgrmonitoring.php";
+                }elseif($pgload=="userroles"){ include "users/role.php";
+                }elseif($pgload=="ledgerusers"){ include "users/users.php";
+                }else{ include "dashboard.php"; }
+            ?>
         </div>
-       </div>
+    </div>
 </div>
 <script src="../assets/plugins/dataTables/jquery.dataTables.js"></script>
 <script src="../assets/plugins/dataTables/dataTables.bootstrap.js"></script>
 <script src="../assets/js/jquery-ui.min.js"></script>
-
 <script>
     $(document).ready(function () {
         $('#dataTables-example').dataTable();
-
         $('[data-toggle="modal"]').on('click', function () {
             var target = $(this).data('target');
-            if (target) {
-                $(target).addClass('active');
-            }
+            if (target) { $(target).addClass('active'); }
         });
-
         $('[data-dismiss="modal"]').on('click', function () {
             $(this).closest('.modal-overlay').removeClass('active');
         });
     });
 </script>
-
 </body>
 </html>

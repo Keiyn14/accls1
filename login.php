@@ -37,6 +37,18 @@
 include "inc/functions.php";
 include "inc/mysqli_connect.php";
 session_start();
+
+// 🔒 SECURITY: Visiting the login page always clears any existing session.
+// This ensures the back button after logout never silently restores access.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $p = session_get_cookie_params();
+        setcookie(session_name(), '', time() - 42000, $p["path"], $p["domain"], $p["secure"], $p["httponly"]);
+    }
+    session_destroy();
+    session_start(); // Fresh session for the login form CSRF safety
+}
 ?>
 
     <header class="w-full px-6 py-4 flex justify-between items-center bg-black/10 backdrop-blur-sm fixed top-0 left-0 z-50">
