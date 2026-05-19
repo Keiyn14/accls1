@@ -180,7 +180,12 @@ $defaultPic = "../assets/logo.png";
                     </tbody>
                     <tfoot class="bg-gray-50 border-t-2 border-gray-300 font-bold text-gray-800 shadow-inner">
                         <tr>
-                            <td colspan="6" class="px-4 py-4 text-right uppercase tracking-wider text-xs">Total Accumulation:</td>
+                            <td colspan="3"></td> 
+                            
+                            <td class="hidden"></td> 
+                            
+                            <td colspan="2" class="px-4 py-4 text-right uppercase tracking-wider text-xs">Total Accumulation:</td>
+                            
                             <td class="px-4 py-4 text-right text-gray-900"><?php echo number_format($grandAssessment, 2); ?></td>
                             <td class="px-4 py-4 text-right text-blue-700"><?php echo number_format($grandPaid, 2); ?></td>
                             <td class="px-4 py-4 text-right text-red-600"><?php echo number_format($grandBalance, 2); ?></td>
@@ -198,14 +203,22 @@ function printSummaryReport() {
         var table = $('#dataTables-example').DataTable();
         var currentLength = table.page.len();
 
+        // Reveal all rows for printing
         table.page.len(-1).draw(false);
         var tableHTML = document.getElementById('dataTables-example').outerHTML;
+        // Restore table back to normal pagination
         table.page.len(currentLength).draw(false);
 
         var logoSrc = "<?php echo $defaultPic; ?>";
-        var dFilter = $('#reportDept').val() || 'All Departments';
-        var syFilter = $('#reportSY').val() || 'All School Years';
-        var semFilter = $('#reportSem').val() || 'All Semesters';
+        
+        var pFilter = $('#reportProgram').val();
+        var programLabel = pFilter ? pFilter : 'OVERALL';
+        
+        var syFilter = $('#reportSY').val();
+        var syLabel = syFilter ? syFilter : 'OVERALL';
+        
+        var semFilter = $('#reportSem').val();
+        var semLabel = semFilter ? semFilter : 'OVERALL';
 
         var printWindow = window.open('', '_blank');
         printWindow.document.write(`
@@ -225,7 +238,7 @@ function printSummaryReport() {
                 th, td { border: 1px solid #000; padding: 10px 8px; text-align: left; font-size: 13px; }
                 th { font-weight: bold; background-color: #f8f9fa; text-transform: uppercase; }
                 .hidden { display: none !important; }
-                td:nth-child(8), td:nth-child(9), td:nth-child(10) { text-align: right; }
+                td:nth-child(7), td:nth-child(8), td:nth-child(9) { text-align: right; }
                 .footer { margin-top: 50px; display: flex; justify-content: flex-end; }
                 .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; min-width: 160px; display: inline-block; padding-bottom: 2px;}
             </style>
@@ -238,9 +251,9 @@ function printSummaryReport() {
                 <div class="doc-title">LEDGER ACCOUNTS AUDIT SUMMARY REPORT</div>
             </div>
             <div class="filter-meta">
-                <span>DEPARTMENT: ${dFilter}</span>
-                <span>SCHOOL YEAR: ${syFilter}</span>
-                <span>SEMESTER: ${semFilter}</span>
+                <span>DEPARTMENT: ${programLabel}</span>
+                <span>SCHOOL YEAR: ${syLabel}</span>
+                <span>SEMESTER: ${semLabel}</span>
             </div>
             ${tableHTML}
             <div class="footer"><div><p>Certified by:</p><div class="signature-line">FINANCE OFFICE AUDITOR</div></div></div>
@@ -260,6 +273,37 @@ $(document).ready(function(){
         "language": {
             "search": "Global Search: ", 
             "searchPlaceholder": "Type keywords..."
+        },
+        "footerCallback": function (row, data, start, end, display) {
+            var api = this.api();
+
+            // UPGRADED: Safely extracts numbers, stripping out formatting and HTML tags so math doesn't fail
+            var intVal = function (i) {
+                if (typeof i === 'string') {
+                    return i.replace(/(<([^>]+)>)/gi, "").replace(/[\$,]/g, '').trim() * 1 || 0;
+                }
+                return typeof i === 'number' ? i : 0;
+            };
+
+            var totalAssessment = api.column(6, { filter: 'applied' }).data().reduce(function (a, b) {
+                return intVal(a) + intVal(b);
+            }, 0);
+            
+            var totalPaid = api.column(7, { filter: 'applied' }).data().reduce(function (a, b) {
+                return intVal(a) + intVal(b);
+            }, 0);
+
+            var totalBalance = api.column(8, { filter: 'applied' }).data().reduce(function (a, b) {
+                return intVal(a) + intVal(b);
+            }, 0);
+
+            var formatNum = function(num) {
+                return parseFloat(num).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            };
+
+            $(api.column(6).footer()).html(formatNum(totalAssessment));
+            $(api.column(7).footer()).html(formatNum(totalPaid));
+            $(api.column(8).footer()).html(formatNum(totalBalance));
         }
     });
 
@@ -270,13 +314,10 @@ $(document).ready(function(){
         var sySel = $('#reportSY').val() || '';
         var semSel = $('#reportSem').val() || '';
 
-        // 🛠️ STRIP HTML TAGS: This removes the <span>...</span> wrapper
-        // We use .replace(/(<([^>]+)>)/gi, "") to get the clean text
         var rowProgram = (data[2] || '').replace(/(<([^>]+)>)/gi, "").trim(); 
         var rowSY = (data[4] || '').replace(/(<([^>]+)>)/gi, "").trim();   
         var rowSem = (data[5] || '').replace(/(<([^>]+)>)/gi, "").trim();  
 
-        // Check if selections match (only if they aren't empty)
         if (pSel !== '' && rowProgram !== pSel.trim()) return false;
         if (sySel !== '' && rowSY !== sySel.trim()) return false;
         if (semSel !== '' && rowSem !== semSel.trim()) return false;
@@ -284,7 +325,6 @@ $(document).ready(function(){
         return true; 
     });
 
-    // Ensure the table draws when dropdowns change
     $('#reportProgram, #reportSY, #reportSem').on('change', function() { 
         table.draw(); 
     });

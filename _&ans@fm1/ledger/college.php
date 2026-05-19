@@ -409,6 +409,8 @@ if(isset($_POST['action_type'])){
                     <div>
                         <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">Amount Paid (PHP) *</label>
                         <input type="number" step="0.01" min="0.01" id="payment_amount" name="payment_amount" class="w-full px-3 py-2 border border-gray-300 rounded text-base font-bold bg-white text-gray-900" placeholder="0.00" required>
+                        
+                        <p id="amount_warning" class="text-xs text-red-600 font-bold mt-1 hidden"></p>
                     </div>
                     <div>
                         <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">Remarks / Payment Stage *</label>
@@ -442,7 +444,7 @@ if(isset($_POST['action_type'])){
                 </div>
                 <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg border-t p-4">
                     <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded text-sm" onclick="closeModal('paymentModal')">Close</button>
-                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded text-sm shadow">Post Remittance</button>
+                    <button type="submit" id="submit_payment_btn" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded text-sm shadow">Post Remittance</button>
                 </div>
             </form>
         </div>
@@ -954,6 +956,60 @@ $(document).ready(function() {
 
     $('#filterProgram, #filterSY, #filterSem').on('change', function() { 
         table.draw(); 
+    });
+
+    // Watch the Amount input field for typing inside your modal
+    $('#payment_amount').on('input', function() {
+        let amount = parseFloat($(this).val()) || 0;
+        
+        // Safely extract the balance directly from the label in your modal (removes commas/currency symbols)
+        let balanceText = $('#lbl_student_balance').text().replace(/[^0-9.-]+/g, "");
+        let balance = parseFloat(balanceText) || 0;
+        
+        let remarksDropdown = $('#remarks');
+        let submitBtn = $('#submit_payment_btn');
+        let warningText = $('#amount_warning');
+        
+        // Smart Minimum: 500, UNLESS the actual balance is lower than 500
+        let minimumAllowed = Math.min(500, balance);
+
+        // Reset visual warnings first
+        warningText.addClass('hidden');
+        submitBtn.prop('disabled', false);
+
+        // RULE 1: Prevent exceeding balance
+        if (amount > balance) {
+            alert("Error: Payment cannot exceed the remaining balance of ₱" + balance.toLocaleString('en-US', {minimumFractionDigits: 2}));
+            
+            $(this).val(balance); // Force value back down to max balance
+            amount = balance;     // Update variable for rules below
+        }
+
+        // RULE 2 & 3: Auto-dropdown and Minimum checks
+        if (amount === balance && balance > 0) {
+            // Exact full payment
+            remarksDropdown.val("Full payment");
+            
+        } else if (amount >= 500 && amount < balance) {
+            // Normal downpayment
+            remarksDropdown.val("Downpayment");
+            
+        } else if (amount < minimumAllowed && amount > 0) {
+            // Block submission! Amount is below minimum
+            warningText.text("Minimum payment allowed is ₱" + minimumAllowed.toFixed(2)).removeClass('hidden');
+            remarksDropdown.val(""); // Clear dropdown
+            submitBtn.prop('disabled', true);
+        }
+    });
+
+    // OPTIONAL BONUS: Reset the form completely when the modal is closed
+    // so the next student doesn't have leftover warnings!
+    $('.modal-overlay').on('click', function(e) {
+        if (e.target === this || $(e.target).hasClass('text-white hover:text-gray-200')) { // Check if clicking close X or background
+            $('#amount_warning').addClass('hidden');
+            $('#submit_payment_btn').prop('disabled', false);
+            $('#ajaxPaymentForm')[0].reset();
+        }
     });
 });
 </script>
