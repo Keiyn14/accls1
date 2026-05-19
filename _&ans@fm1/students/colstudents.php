@@ -494,7 +494,7 @@ if(isset($_POST['action_type'])){
     <div class="flex flex-wrap lg:flex-nowrap gap-4 mb-6 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-hide">
         <div class="flex flex-wrap gap-3">
             <button onclick="openModal('formModal')" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
-                <i class="icon-plus"></i> Add Learner
+                <i class="icon-plus"></i> Add Student
             </button>
             <button onclick="openModal('importModal')" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition duration-200">
                 <i class="icon-upload"></i> Bulk Import
@@ -1003,6 +1003,11 @@ function smartPrint() {
                 th:first-child, td:first-child, th:last-child, td:last-child { display: none !important; }
                 .footer { margin-top: 50px; display: flex; justify-content: flex-end; }
                 .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; min-width: 150px; display: inline-block; padding-bottom: 2px;}
+                .term-banner { text-align: center; margin: 14px 0 18px; }
+                .term-badge  { display: inline-block; margin: 0 6px; padding: 5px 16px; border-radius: 5px; font-size: 13px; font-weight: bold; }
+                .term-badge.sy  { border: 2px solid #1a5c2f; background: #eafaf0; color: #1a5c2f; }
+                .term-badge.sem { border: 2px solid #1a4fa8; background: #eaf0fb; color: #1a4fa8; }
+                .term-badge small { display: block; font-size: 9px; font-weight: normal; text-transform: uppercase; letter-spacing: 0.8px; }
             </style>
         </head>
         <body>
@@ -1012,10 +1017,13 @@ function smartPrint() {
                 <p>A.A Baranghawon Tabaco City</p>
                 <div class="doc-title">ENROLLED STUDENTS DIRECTORY</div>
             </div>
-            <div class="info-row"><span>Semester: ${sem}</span><span>School Year: ${sy}</span></div>
+            <div class="term-banner">
+                <div class="term-badge sy"><small>School Year</small>${sy}</div>
+                <div class="term-badge sem"><small>Semester</small>${sem}</div>
+            </div>
             ${tableHTML}
             <div class="footer"><div><p>Prepared by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
-            <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<\/script>
+            <script>window.onload = function() { setTimeout(function() { window.print(); window.close();}, 500); };<\/script>
         </body>
         </html>`;
 
