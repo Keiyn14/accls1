@@ -977,12 +977,31 @@ function smartPrint() {
         var currentLength = table.page.len();
 
         table.page.len(-1).draw(false);
-        var tableHTML = document.getElementById('dataTables-example').outerHTML;
         table.page.len(currentLength).draw(false);
 
         var logoSrc = "<?php echo $defaultPic; ?>";
         var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
         var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
+
+        // Build grouped rows by program
+        var rows = document.querySelectorAll('#dataTables-example tbody tr');
+        var groups = {}, order = [];
+        rows.forEach(function(tr) {
+            var cells = tr.querySelectorAll('td');
+            if (cells.length < 6) return;
+            var prog = cells[3].innerText.trim();
+            if (!groups[prog]) { groups[prog] = []; order.push(prog); }
+            groups[prog].push(tr);
+        });
+        var groupedHTML = '';
+        order.forEach(function(prog) {
+            groupedHTML += '<tr><td colspan="5" style="background:#1a5c2f;color:#fff;font-weight:bold;padding:6px 10px;text-transform:uppercase;font-size:12px;">&#9632; ' + prog + ' (' + groups[prog].length + ' students)</td></tr>';
+            groups[prog].forEach(function(tr) {
+                var c = tr.querySelectorAll('td');
+                groupedHTML += '<tr><td>' + c[1].innerText + '</td><td>' + c[2].innerText + '</td><td>' + c[4].innerText + '</td><td>' + c[5].innerText + '</td><td>' + c[6].innerText + '</td></tr>';
+            });
+            groupedHTML += '<tr><td colspan="5" style="border:none;padding:4px;"></td></tr>';
+        });
 
         var printWindow = window.open('', '_blank');
         var html = `
@@ -1000,14 +1019,8 @@ function smartPrint() {
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
                 th, td { border: 1px solid #000; padding: 10px 8px; text-align: left; font-size: 14px; }
                 th { font-weight: bold; background-color: #f8f9fa; }
-                th:first-child, td:first-child, th:last-child, td:last-child { display: none !important; }
                 .footer { margin-top: 50px; display: flex; justify-content: flex-end; }
                 .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; min-width: 150px; display: inline-block; padding-bottom: 2px;}
-                .term-banner { text-align: center; margin: 14px 0 18px; }
-                .term-badge  { display: inline-block; margin: 0 6px; padding: 5px 16px; border-radius: 5px; font-size: 13px; font-weight: bold; }
-                .term-badge.sy  { border: 2px solid #1a5c2f; background: #eafaf0; color: #1a5c2f; }
-                .term-badge.sem { border: 2px solid #1a4fa8; background: #eaf0fb; color: #1a4fa8; }
-                .term-badge small { display: block; font-size: 9px; font-weight: normal; text-transform: uppercase; letter-spacing: 0.8px; }
             </style>
         </head>
         <body>
@@ -1017,11 +1030,20 @@ function smartPrint() {
                 <p>A.A Baranghawon Tabaco City</p>
                 <div class="doc-title">ENROLLED STUDENTS DIRECTORY</div>
             </div>
-            <div class="term-banner">
-                <div class="term-badge sy"><small>School Year</small>${sy}</div>
-                <div class="term-badge sem"><small>Semester</small>${sem}</div>
-            </div>
-            ${tableHTML}
+            <p style="text-align:center; font-size:22px; font-weight: bold; margin:8px 0 4px;">A.Y. ${sy}</p>
+            <p style="text-align:center; font-size:16px; margin:0 0 16px;">${sem}</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Student ID</th>
+                        <th>Student Name</th>
+                        <th>Level</th>
+                        <th>Status</th>
+                        <th>School Year</th>
+                    </tr>
+                </thead>
+                <tbody>${groupedHTML}</tbody>
+            </table>
             <div class="footer"><div><p>Prepared by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
             <script>window.onload = function() { setTimeout(function() { window.print(); window.close();}, 500); };<\/script>
         </body>
