@@ -49,9 +49,28 @@ if(isset($_POST['action_type'])){
         $target_sid = intval($_POST['payment_sid']);
 
         if($csid > 0 && !empty($orNo) && !empty($payDate) && $amount > 0 && $target_syid > 0 && $target_sid > 0) {
+            
+            // 🛡️ SECURITY CHECK: Prevent Duplicate O.R. Numbers
+            $checkOR = $dbcon->query("SELECT id FROM ledger WHERE or_no = '$orNo' LIMIT 1");
+            if ($checkOR && $checkOR->num_rows > 0) {
+                echo json_encode([
+                    "status" => "error", 
+                    "message" => "Existing O.R. number in the system. Please verify the receipt and enter a different number."
+                ]);
+                exit();
+            }
+
             $query = "INSERT INTO ledger (csid, or_no, payment_date, amount, remarks, syid, sid) 
                       VALUES ($csid, '$orNo', '$payDate', $amount, '$remarks', $target_syid, $target_sid)";
+                      
             if($dbcon->query($query)){
+                // 🔄 AUTO-UPDATE STUDENT BALANCE: Sync amount_paid to the ledger table
+                $dbcon->query("
+                    INSERT INTO student_balances (csid, syid, sid, total_fee, amount_paid)
+                    VALUES ($csid, $target_syid, $target_sid, 0.00, $amount)
+                    ON DUPLICATE KEY UPDATE amount_paid = amount_paid + $amount
+                ");
+                
                 echo json_encode(["status" => "success"]);
             } else {
                 echo json_encode(["status" => "error", "message" => $dbcon->error]);
@@ -215,11 +234,18 @@ if(isset($_POST['action_type'])){
                 while($f=$fRes->fetch_assoc()) echo "<option value='".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($f['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
                 ?>
             </select>
-            <select id="filterLevel" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
-                <option value="">All Levels</option>
+            <select id="filterSY" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                <option value="">All School Years</option>
                 <?php
-                $glRes=$dbcon->query("SELECT glevel FROM gradelevel GROUP BY glevel");
-                while($gl=$glRes->fetch_assoc()) echo "<option value='".htmlspecialchars($gl['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($gl['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
+                $syRes=$dbcon->query("SELECT syname FROM sy ORDER BY syname DESC");
+                while($s=$syRes->fetch_assoc()) echo "<option value='".htmlspecialchars($s['syname'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($s['syname'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
+                ?>
+            </select>
+            <select id="filterSem" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                <option value="">All Semesters</option>
+                <?php
+                $semRes=$dbcon->query("SELECT semester FROM sem ORDER BY sid ASC");
+                while($sm=$semRes->fetch_assoc()) echo "<option value='".htmlspecialchars($sm['semester'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($sm['semester'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
                 ?>
             </select>
         </div>
@@ -591,26 +617,93 @@ function fetchPaymentLogsList(csid) {
 }
 
 function savePaymentTransaction(e) {
-    e.preventDefault();
-    var formData = $('#ajaxPaymentForm').serialize();
+    e.preventDefault(); 
+    e.stopPropagation();
+    
+    var form = $('#ajaxPaymentForm');
+    var submitBtn = form.find('button[type="submit"]');
+    var originalBtnText = submitBtn.html();
+    
+    // Change button text to show processing state
+    submitBtn.html('Processing...').prop('disabled', true);
+
+    // Clear out any old error messages before trying again
+    $('#payment-error-alert').remove();
+
     $.ajax({
         type: 'POST',
         url: window.location.href,
-        data: formData,
+        data: form.serialize(),
         success: function(response) {
+            var res = null;
+            var rawText = String(response).trim();
+            
             try {
-                var res = parsePollutedJson(response);
-                if (res.status === "success") {
-                    window.location.replace(window.location.href);
+                // Safely attempt to parse the server's response
+                if (typeof response === 'object' && response !== null) {
+                    res = response;
                 } else {
-                    alert("⚠️ O.R. Number Restriction Conflict:\n" + res.message);
+                    var start = rawText.indexOf('{');
+                    var end = rawText.lastIndexOf('}');
+                    if (start !== -1 && end !== -1) {
+                        res = JSON.parse(rawText.substring(start, end + 1));
+                    } else {
+                        res = JSON.parse(rawText);
+                    }
                 }
-            } catch(e) {
-                window.location.replace(window.location.href);
+            } catch(err) {
+                console.log("JSON parsing crashed due to hidden PHP characters. Relying on raw text scan.");
             }
+            
+            // 🛑 AGGRESSIVE TEXT SCANNER (Bypasses all formatting bugs)
+            if (!res) {
+                if (rawText.includes("Existing O.R. number") || rawText.includes("already been recorded")) {
+                    res = { status: "error", message: "Existing O.R. number in the system. Please verify the receipt and enter a different number." };
+                } 
+                else if (rawText.includes('"success"')) {
+                    // If the raw text contains "success", force it through!
+                    res = { status: "success" };
+                }
+            }
+
+            // 🛑 DISPLAY THE RED WARNING BANNER
+            if (res && res.status === "error") {
+                var errorHtml = `
+                    <div id="payment-error-alert" class="mb-4 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-md shadow-sm">
+                        <div class="flex items-start">
+                            <div class="text-red-600 font-extrabold text-xl mr-3 leading-none">!</div>
+                            <div>
+                                <h3 class="text-sm font-bold text-red-900">Duplicate Record Prevented</h3>
+                                <div class="mt-0.5 text-xs text-red-800">${res.message}</div>
+                            </div>
+                        </div>
+                    </div>`;
+                form.find('.modal-body').prepend(errorHtml);
+                submitBtn.html(originalBtnText).prop('disabled', false);
+                return;
+            } 
+            
+            // ✅ SUCCESS
+            if (res && res.status === "success") {
+                form[0].reset();
+                closeModal('paymentModal');
+                window.location.reload(); 
+                return; // Stop execution here!
+            } 
+            
+            // ⚠️ ULTIMATE FAILSAFE (Should basically never show up now)
+            var fallbackError = `
+                <div id="payment-error-alert" class="mb-4 bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded-r-md">
+                    <div class="text-sm text-yellow-800 font-bold">Unrecognized Response:</div>
+                    <div class="text-xs text-yellow-700 mt-1 break-all">${rawText.substring(0, 150)}</div>
+                </div>`;
+            form.find('.modal-body').prepend(fallbackError);
+            submitBtn.html(originalBtnText).prop('disabled', false);
         },
         error: function() {
-            alert("Exception encountered inside remittance layer.");
+            var networkError = `<div id="payment-error-alert" class="mb-4 bg-red-50 border-l-4 border-red-500 p-3 rounded text-red-800 text-sm font-bold">Database connection lost.</div>`;
+            form.find('.modal-body').prepend(networkError);
+            submitBtn.html(originalBtnText).prop('disabled', false);
         }
     });
 }
@@ -817,7 +910,7 @@ function executeSOAPrint() {
             <div class="summary-line summary-total"><span>Net Outstanding Balance:</span><span>${balance.toFixed(2)} ₱</span></div>
         </div>
         <div class="footer"><div><p>Issued by:</p><div class="signature-line">ACC CASHIER OFFICE</div></div></div>
-        <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
+        <script>window.onload = function() { setTimeout(function() { window.print(); window.close();}, 400); };<\/script>
     </body>
     </html>`);
     printWindow.document.close();
@@ -846,13 +939,21 @@ $(document).ready(function() {
 
     $.fn.dataTable.ext.search.push(function(settings, data, dataIndex) {
         if (settings.nTable.id !== 'dataTables-example') return true; 
+        
         var pSel = $('#filterProgram').val() || '';
-        var lSel = $('#filterLevel').val() || '';
+        var sySel = $('#filterSY').val() || '';
+        var semSel = $('#filterSem').val() || '';
+        
+        // Column Index Mapping: data[2] = Program, data[4] = SY, data[5] = Sem
         if (pSel !== '' && (data[2] || '').trim() !== pSel.trim()) return false;
-        if (lSel !== '' && (data[3] || '').trim() !== lSel.trim()) return false;
+        if (sySel !== '' && (data[4] || '').trim() !== sySel.trim()) return false;
+        if (semSel !== '' && (data[5] || '').trim() !== semSel.trim()) return false;
+        
         return true; 
     });
 
-    $('#filterProgram, #filterLevel').on('change', function() { table.draw(); });
+    $('#filterProgram, #filterSY, #filterSem').on('change', function() { 
+        table.draw(); 
+    });
 });
 </script>

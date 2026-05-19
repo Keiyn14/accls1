@@ -244,7 +244,7 @@ function printSummaryReport() {
             </div>
             ${tableHTML}
             <div class="footer"><div><p>Certified by:</p><div class="signature-line">FINANCE OFFICE AUDITOR</div></div></div>
-            <script>window.onload = function() { setTimeout(function() { window.print(); }, 500); };<\/script>
+            <script>window.onload = function() { setTimeout(function() { window.print(); window.close();}, 500); };<\/script>
         </body>
         </html>`);
         printWindow.document.close();
@@ -270,10 +270,13 @@ $(document).ready(function(){
         var sySel = $('#reportSY').val() || '';
         var semSel = $('#reportSem').val() || '';
 
-        var rowProgram = (data[3] || '').trim(); // Index 3 targets the visible 'Course/Program' column
-        var rowSY = (data[5] || '').trim();   
-        var rowSem = (data[6] || '').trim();  
+        // 🛠️ STRIP HTML TAGS: This removes the <span>...</span> wrapper
+        // We use .replace(/(<([^>]+)>)/gi, "") to get the clean text
+        var rowProgram = (data[2] || '').replace(/(<([^>]+)>)/gi, "").trim(); 
+        var rowSY = (data[4] || '').replace(/(<([^>]+)>)/gi, "").trim();   
+        var rowSem = (data[5] || '').replace(/(<([^>]+)>)/gi, "").trim();  
 
+        // Check if selections match (only if they aren't empty)
         if (pSel !== '' && rowProgram !== pSel.trim()) return false;
         if (sySel !== '' && rowSY !== sySel.trim()) return false;
         if (semSel !== '' && rowSem !== semSel.trim()) return false;
@@ -281,8 +284,9 @@ $(document).ready(function(){
         return true; 
     });
 
-    $('#reportDept, #reportSY, #reportSem').on('change', function() {
-        table.draw();
+    // Ensure the table draws when dropdowns change
+    $('#reportProgram, #reportSY, #reportSem').on('change', function() { 
+        table.draw(); 
     });
 });
 </script>

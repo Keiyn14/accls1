@@ -831,20 +831,11 @@ if(isset($_POST['action_type'])){
                     
                     <input type="hidden" id="subject_code" name="subject_code" value="" required>
 
-                    <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-end border-b border-gray-200 pb-4 mb-2">
-                        <div class="md:col-span-8">
-                            <label class="block text-gray-600 text-xs font-semibold mb-1">Selected Subject Description</label>
-                            <input type="text" id="subject_title" name="subject_title" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-white text-gray-800 font-bold shadow-sm cursor-default" readonly placeholder="Click any subject card item below to select..." required>
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-gray-600 text-xs font-semibold mb-1 text-center">Units</label>
-                            <input type="number" id="subject_units" name="subject_units" class="w-full px-3 py-1.5 border border-gray-300 rounded text-sm bg-white text-gray-800 font-black shadow-sm text-center cursor-default" readonly placeholder="0" required>
-                        </div>
-                        <div class="md:col-span-2">
-                            <button type="submit" class="w-full py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded text-sm shadow transition duration-150 transform active:scale-95">
-                                Add
-                            </button>
-                        </div>
+                    <div class="flex justify-between items-center border-b border-gray-200 pb-4 mb-2">
+                        <span class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Click cards below to select multiple subjects</span>
+                        <button type="submit" class="px-6 py-2 bg-purple-600 hover:bg-purple-700 text-white font-extrabold rounded-lg shadow-md transition duration-150 transform active:scale-95 flex items-center gap-2">
+                            <i class="icon-plus"></i> Add Selected Subjects
+                        </button>
                     </div>
 
                     <div>
@@ -1040,6 +1031,9 @@ function smartPrint() {
 var activeCatalogSubjects = [];
 
 function triggerSubjectModal(btn) {
+    // Clear out any multi-selects from previous students!
+    window.selectedSubjectCodes = [];
+
     var csid = btn.getAttribute('data-csid') || '';
     var cid = btn.getAttribute('data-cid') || '';
     
@@ -1049,10 +1043,8 @@ function triggerSubjectModal(btn) {
     document.getElementById('sub_program').innerText = btn.getAttribute('data-program') || '';
     document.getElementById('sub_glevel').innerText = btn.getAttribute('data-glevel') || '';
     
-    // Reset selection input display boxes
+    // Reset selection input display boxes (Only the hidden code box remains)
     document.getElementById('subject_code').value = '';
-    document.getElementById('subject_title').value = '';
-    document.getElementById('subject_units').value = '';
     
     document.getElementById('modal_visual_subject_catalog').innerHTML = 
         '<div class="text-xs text-gray-400 italic text-center py-6">Fetching curriculum map grid. Please wait...</div>';
@@ -1060,8 +1052,9 @@ function triggerSubjectModal(btn) {
     // Load visual map layout cards
     loadCatalogSubjectsDropdown(cid);
     
-    // ✅ FIX: Correctly calls the existing list-loading engine right as the modal initializes
+    // Correctly calls the existing list-loading engine right as the modal initializes
     fetchSubjectLoadList(csid);
+    
     openModal('subjectModal');
 }
 
@@ -1178,22 +1171,70 @@ function loadCatalogSubjectsDropdown(cid) {
                 yearCardHtml += `</div></div>`;
                 catalogContainer.append(yearCardHtml);
             });
+
+            applyGrayOutLogic();
         }
     });
 }
 
-// 🚀 EVENT DELEGATION: Tracks dynamically rendered elements smoothly
+// 🚀 SYNC ENGINE: Automatically grays out subjects already in the load
+window.enrolledSubjectCodes = [];
+
+function applyGrayOutLogic() {
+    if (!window.enrolledSubjectCodes) return;
+    
+    $('.subject-clickable-row').each(function() {
+        var code = String($(this).attr('data-code')).trim();
+        
+        if (window.enrolledSubjectCodes.includes(code)) {
+            // Gray out and disable clicking
+            $(this).removeClass('hover:border-purple-500 hover:bg-purple-50/20 cursor-pointer')
+                   .addClass('opacity-50 cursor-not-allowed bg-gray-100 border-gray-200 pointer-events-none');
+                   
+            // Change button to "Added"
+            $(this).find('span').removeClass('text-purple-600 bg-purple-50 group-hover:bg-purple-600 group-hover:text-white border-purple-100 group-hover:border-purple-600')
+                                .addClass('bg-gray-300 text-gray-500 border-gray-300')
+                                .text('Added');
+        } else {
+            // Restore default interactive state if removed
+            $(this).addClass('hover:border-purple-500 hover:bg-purple-50/20 cursor-pointer')
+                   .removeClass('opacity-50 cursor-not-allowed bg-gray-100 border-gray-200 pointer-events-none');
+                   
+            // Restore "Select" button
+            $(this).find('span').addClass('text-purple-600 bg-purple-50 group-hover:bg-purple-600 group-hover:text-white border-purple-100 group-hover:border-purple-600')
+                                .removeClass('bg-gray-300 text-gray-500 border-gray-300')
+                                .text('Select');
+        }
+    });
+}
+
+// 🚀 MULTI-SELECT QUEUE ENGINE
+window.selectedSubjectCodes = [];
+
+// 1. Toggle Selection Logic
 $(document).on('click', '.subject-clickable-row', function() {
-    var subCode  = $(this).attr('data-code');
-    var subTitle = $(this).attr('data-title');
-    var subUnits = $(this).attr('data-units');
+    // Ignore clicks on subjects that are already enrolled (grayed out)
+    if ($(this).hasClass('cursor-not-allowed')) return;
 
-    $('#subject_code').val(subCode);
-    $('#subject_title').val(subTitle);
-    $('#subject_units').val(subUnits);
+    var subCode = $(this).attr('data-code');
 
-    $('.subject-clickable-row').removeClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
-    $(this).addClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+    if ($(this).hasClass('selected-for-add')) {
+        // DESELECT: Remove highlights and array entry
+        $(this).removeClass('selected-for-add ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+        $(this).find('span').text('Select').removeClass('bg-purple-600 text-white').addClass('text-purple-600 bg-purple-50');
+        
+        window.selectedSubjectCodes = window.selectedSubjectCodes.filter(function(code) {
+            return code !== subCode;
+        });
+    } else {
+        // SELECT: Add highlights and array entry
+        $(this).addClass('selected-for-add ring-2 ring-purple-600 bg-purple-50 border-purple-400');
+        $(this).find('span').text('Selected').removeClass('text-purple-600 bg-purple-50').addClass('bg-purple-600 text-white');
+        
+        if (!window.selectedSubjectCodes.includes(subCode)) {
+            window.selectedSubjectCodes.push(subCode);
+        }
+    }
 });
 
 function fetchSubjectLoadList(csid) {
@@ -1216,12 +1257,18 @@ function fetchSubjectLoadList(csid) {
             var majorCount = 0;
             var flatMisc = 9000;
             
+            // Reset our tracking array
+            window.enrolledSubjectCodes = [];
+            
             if(!data || data.length === 0) {
                 html = '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No subject courses added to this curriculum load yet.</td></tr>';
             } else {
                 data.forEach(function(row) {
                     var currentPrice = parseFloat(row.price) || 0;
                     totalTuition += currentPrice;
+                    
+                    // Track this subject so the catalog can gray it out
+                    window.enrolledSubjectCodes.push(String(row.subject_code).trim());
                     
                     var codeString = String(row.subject_code).toUpperCase().trim();
                     if (!codeString.startsWith('GE') && !codeString.startsWith('GEE')) {
@@ -1248,6 +1295,9 @@ function fetchSubjectLoadList(csid) {
             document.getElementById('major_count').innerText = majorCount;
             document.getElementById('fee_lab').innerText = totalLab.toFixed(2) + " PHP";
             document.getElementById('fee_total').innerText = grandTotal.toFixed(2) + " PHP";
+            
+            // 🚀 Fire the sync logic to update the catalog visual states!
+            applyGrayOutLogic();
         },
         error: function(xhr) {
             console.error("Fetch Failure Status:", xhr.statusText);
@@ -1255,60 +1305,81 @@ function fetchSubjectLoadList(csid) {
     });
 }
 
+// 2. Process Queue on Form Submit
 function saveSubjectLoad(e) {
     e.preventDefault();
     
-    var subCode = $('#subject_code').val();
-    if(!subCode || subCode.trim() === "") {
-        alert("Please select a subject card from the curriculum chart first.");
+    if (!window.selectedSubjectCodes || window.selectedSubjectCodes.length === 0) {
+        alert("Please select at least one subject from the curriculum chart first.");
         return;
     }
 
-    var formData = $('#ajaxSubjectForm').serialize();
     var csid = document.getElementById('subject_csid').value;
     
+    // Change button text to show processing state
+    var submitBtn = $(e.target).find('button[type="submit"]');
+    var originalBtnText = submitBtn.html();
+    submitBtn.html('<i class="icon-spinner"></i> Processing Queue...').prop('disabled', true);
+
+    // 🚀 Process all selected subjects sequentially behind the scenes
+    processSubjectQueue(window.selectedSubjectCodes, 0, csid, function() {
+        // Restore button
+        submitBtn.html(originalBtnText).prop('disabled', false);
+        
+        // Reset selection array and UI highlights
+        window.selectedSubjectCodes = [];
+        $('.selected-for-add').removeClass('selected-for-add ring-2 ring-purple-600 bg-purple-50 border-purple-400')
+            .find('span').text('Select').removeClass('bg-purple-600 text-white').addClass('text-purple-600 bg-purple-50');
+            
+        // Final refresh of the enrolled list (which also fires applyGrayOutLogic)
+        fetchSubjectLoadList(csid);
+    });
+}
+
+// 3. Recursive AJAX Queue Processor
+function processSubjectQueue(codes, index, csid, onComplete) {
+    if (index >= codes.length) {
+        onComplete(); // Done processing the whole array
+        return;
+    }
+
+    var currentCode = codes[index];
+
     $.ajax({
         type: 'POST',
         url: window.location.href,
-        data: formData,
+        data: { 
+            action_type: 'add_subject', 
+            subject_csid: csid, 
+            subject_code: currentCode 
+        },
         success: function(response) {
             try {
                 var res = parsePollutedJson(response);
                 
-                // 🛑 CHECK BALANCE HOLD ACTION STATUS INTERCEPTION
+                // 🛑 Block immediately if there's an outstanding balance
                 if (res && res.status === "blocked") {
                     var container = $('#holdBalanceLogs');
                     container.empty();
-                    
                     res.records.forEach(function(item) {
-                        var row = '<tr class="border-b">' +
-                            '<td class="p-2.5 font-semibold text-gray-700">' + item.term + '</td>' +
-                            '<td class="p-2.5 text-right text-red-600 font-bold">₱' + parseFloat(item.balance).toFixed(2) + ' PHP</td>' +
-                        '</tr>';
+                        var row = '<tr class="border-b"><td class="p-2.5 font-semibold text-gray-700">' + item.term + '</td><td class="p-2.5 text-right text-red-600 font-bold">₱' + parseFloat(item.balance).toFixed(2) + ' PHP</td></tr>';
                         container.append(row);
                     });
-                    
-                    // Reveal the Balance Restriction Popup
                     openModal('balanceHoldModal');
-                    return; // Prevent form field reset on restriction block
+                    onComplete(); // Halt the entire queue
+                    return; 
                 }
             } catch(err) {
-                console.error("Layout Pollution Handled Safely:", response);
+                console.error("Layout Pollution Handled Safely");
             }
             
-            // Clear selections upon confirmed success row insertion
-            document.getElementById('subject_code').value = '';
-            document.getElementById('subject_title').value = '';
-            document.getElementById('subject_units').value = '';
-            
-            $('.subject-clickable-row').removeClass('ring-2 ring-purple-600 bg-purple-50 border-purple-400');
-            
-            // Refresh table
-            fetchSubjectLoadList(csid);
+            // Success! Move to the next subject in the array
+            processSubjectQueue(codes, index + 1, csid, onComplete);
         },
-        error: function(xhr, status, error) {
-            console.error("Network Exception Details:", xhr.responseText);
-            alert("Network Error: Connection failed to reach backend processing layer.");
+        error: function(xhr) {
+            console.error("Network error on " + currentCode);
+            // Skip failed one and continue queue
+            processSubjectQueue(codes, index + 1, csid, onComplete); 
         }
     });
 }
@@ -1334,11 +1405,39 @@ function printSubjectSummary() {
     var idNum = document.getElementById('sub_student_id').innerText;
     var program = document.getElementById('sub_program').innerText;
     var level = document.getElementById('sub_glevel').innerText;
-    var tableHTML = document.getElementById('subjects_table_body').outerHTML;
-
+    
     var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
     var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
     var logoSrc = "<?php echo $defaultPic; ?>";
+
+    // 1. Calculate Total Units from the table
+    var totalUnits = 0;
+    $('#subjects_table_body tr').each(function() {
+        var tds = $(this).find('td');
+        if(tds.length >= 3) { // Ensure it's not the "No subjects" empty row
+            var unitsText = $(tds[2]).text().trim();
+            var units = parseInt(unitsText);
+            if(!isNaN(units)) {
+                totalUnits += units;
+            }
+        }
+    });
+
+    // Extract innerHTML and append the Total Units row directly to the printout table
+    var tableHTML = document.getElementById('subjects_table_body').innerHTML;
+    if (totalUnits > 0) {
+        tableHTML += `<tr>
+            <td colspan="2" style="text-align: right; font-weight: bold; background-color: #f3f4f6;">Total Enrolled Units:</td>
+            <td style="text-align: center; font-weight: bold; font-size: 14px;">${totalUnits}</td>
+        </tr>`;
+    }
+
+    // 2. Fetch Fee Breakdown directly from the loaded UI calculations
+    var tuitionFee = document.getElementById('fee_tuition').innerText || "0.00 PHP";
+    var labFee = document.getElementById('fee_lab').innerText || "0.00 PHP";
+    var majorCount = document.getElementById('major_count').innerText || "0";
+    var totalFee = document.getElementById('fee_total').innerText || "0.00 PHP";
+    var miscFee = "9,000.00 PHP"; // System's flat rate
 
     var printWindow = window.open('', '_blank');
     var html = `
@@ -1353,11 +1452,20 @@ function printSubjectSummary() {
             .header-container h2 { margin: 0; font-size: 22px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
             .doc-title { font-weight: bold; margin-top: 15px; font-size: 16px; text-decoration: underline; }
             .student-info-grid { border: 1px solid #000; padding: 12px; border-radius: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 13px; margin-bottom: 20px; }
+            
             table { width: 100%; border-collapse: collapse; margin-top: 15px; }
             th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
             th { font-weight: bold; background-color: #f3f4f6; }
+            
+            /* Hide the price and action columns specifically from the innerHTML clone */
             th:nth-child(4), td:nth-child(4) { display: none !important; }
             th:nth-child(5), td:nth-child(5) { display: none !important; }
+            
+            /* Fee Summary Card Styles */
+            .summary-card { margin-top: 25px; border: 1px dashed #000; padding: 12px; font-size: 13px; width: 340px; margin-left: auto; background-color: #fafafa; }
+            .summary-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
+            .summary-total { border-top: 1px dashed #000; padding-top: 6px; font-weight: bold; margin-top: 6px; font-size: 14px; color: #b91c1c; }
+            
             .footer { margin-top: 50px; display: flex; justify-content: flex-end; font-size: 13px; }
             .signature-line { border-bottom: 1px solid #000; font-weight: bold; text-align: center; width: 180px; display: inline-block; padding-bottom: 2px; }
         </style>
@@ -1376,6 +1484,7 @@ function printSubjectSummary() {
             <div><b>Program Load:</b> ${program}</div>
             <div><b>Year Level:</b> ${level}</div>
         </div>
+        
         <table>
             <thead>
                 <tr>
@@ -1386,8 +1495,23 @@ function printSubjectSummary() {
             </thead>
             <tbody>${tableHTML}</tbody>
         </table>
-        <div class="footer"><div><p>Issued by:</p><div class="signature-line">ACC REGISTRAR</div></div></div>
-        <script>window.onload = function() { setTimeout(function() { window.print(); }, 400); };<\/script>
+        
+        <div class="summary-card">
+            <div style="text-align: center; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 8px;">Term Assessment Breakdown</div>
+            <div class="summary-line"><span>Tuition (Enrolled Subjects):</span><span>${tuitionFee}</span></div>
+            <div class="summary-line"><span>Miscellaneous Flat Fee:</span><span>${miscFee}</span></div>
+            <div class="summary-line"><span>Laboratory Fees (${majorCount} Majors):</span><span>${labFee}</span></div>
+            <div class="summary-line summary-total"><span>Total Assessment:</span><span>${totalFee}</span></div>
+        </div>
+
+        <div class="footer">
+            <div>
+                <p>Issued by:</p>
+                <div class="signature-line">ACC REGISTRAR</div>
+            </div>
+        </div>
+        
+        <script>window.onload = function() { setTimeout(function() { window.print(); window.close(); }, 400); };<\/script>
     </body>
     </html>`;
 
