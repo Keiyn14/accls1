@@ -78,7 +78,7 @@ session_start();
         <nav class="bg-white shadow-md border-b-4 border-green-600">
             <div class="px-6 py-4 flex justify-between items-center">
                 <div class="flex items-center">
-                    <h1 class="text-2xl font-bold text-gray-800">ACC Ledger System</h1>
+                    <h1 class="text-2xl font-bold text-gray-800">ACC Ledger System v.2</h1>
                 </div>
                 <div class="text-gray-600 text-sm">
                     <span class="font-semibold">

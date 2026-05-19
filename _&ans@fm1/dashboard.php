@@ -26,8 +26,8 @@ $cpRes = $dbcon->query($strCP);
 $cpData = $cpRes->fetch_assoc();
 $cProg = $cpData['colprog'];
 
-// Total College Payments Collected Overall (Sourced using l.amount and s.syid/s.sid)
-$totalColPaymentsQ = "SELECT SUM(l.amount) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.syid=$syid AND s.sid=$sid AND s.did=1";
+// Sourced globally across all terms to ensure matching chart data reflects properly
+$totalColPaymentsQ = "SELECT SUM(l.amount) as total_paid FROM ledger l INNER JOIN students s ON l.csid = s.csid WHERE s.did=1";
 $tcpRes = $dbcon->query($totalColPaymentsQ);
 $tcpData = $tcpRes->fetch_assoc();
 $total_collection = floatval($tcpData['total_paid'] ?? 0.00);
@@ -83,6 +83,61 @@ while($cRow = $colQRes->fetch_assoc()){
 		<span class="bg-green-100 text-green-800 px-3 py-1 rounded-full font-medium">School Year: <?php echo $sy;?></span>
 		<span class="bg-blue-100 text-blue-800 px-3 py-1 rounded-full font-medium">Semester: <?php echo $sem;?></span>
 	</div>
+</div>
+
+<div class="mb-10">
+    <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4">Quick Navigation Actions</h3>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        
+        <a href="<?php echo accls().'/_&ans@fm1/?&_a!%@1!2%='.encCode('collegestudents'); ?>" 
+           class="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-500 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+            <div class="flex items-center gap-4">
+                <div class="bg-blue-50 text-blue-600 p-3 rounded-xl text-base flex items-center justify-center w-12 h-12 group-hover:bg-blue-100 transition-colors">
+                    <i class="icon-user"></i>
+                </div>
+                <div>
+                    <p class="font-bold text-gray-800 text-sm group-hover:text-blue-600 transition-colors">Manage Learners</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Profiles & Enrollment</p>
+                </div>
+            </div>
+            <div class="text-gray-300 group-hover:text-blue-500 transition-colors pr-1">
+                <i class="icon-chevron-right text-xs"></i>
+            </div>
+        </a>
+
+        <a href="<?php echo accls().'/_&ans@fm1/?&_a!%@1!2%='.encCode('collegeledger'); ?>" 
+           class="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-emerald-500 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+            <div class="flex items-center gap-4">
+                <div class="bg-emerald-50 text-emerald-600 p-3 rounded-xl text-base flex items-center justify-center w-12 h-12 group-hover:bg-emerald-100 transition-colors">
+                    <i class="icon-money"></i>
+                </div>
+                <div>
+                    <p class="font-bold text-gray-800 text-sm group-hover:text-emerald-600 transition-colors">College Remittance</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Collect & Check Fees</p>
+                </div>
+            </div>
+            <div class="text-gray-300 group-hover:text-emerald-500 transition-colors pr-1">
+                <i class="icon-chevron-right text-xs"></i>
+            </div>
+        </a>
+
+        <a href="<?php echo accls().'/_&ans@fm1/?&_a!%@1!2%='.encCode('ledgermonitoring'); ?>" 
+           class="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-500 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+            <div class="flex items-center gap-4">
+                <div class="bg-amber-50 text-amber-600 p-3 rounded-xl text-base flex items-center justify-center w-12 h-12 group-hover:bg-amber-100 transition-colors">
+                    <i class="icon-list"></i>
+                </div>
+                <div>
+                    <p class="font-bold text-gray-800 text-sm group-hover:text-amber-600 transition-colors">Ledger Audit Logs</p>
+                    <p class="text-xs text-gray-400 mt-0.5">Track Transactions</p>
+                </div>
+            </div>
+            <div class="text-gray-300 group-hover:text-amber-500 transition-colors pr-1">
+                <i class="icon-chevron-right text-xs"></i>
+            </div>
+        </a>
+
+    </div>
 </div>
 
 <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">

@@ -238,6 +238,8 @@ if(isset($_POST['action_type'])){
                             <th class="px-4 py-3">Student Name</th>
                             <th class="px-4 py-3">Program</th>
                             <th class="px-4 py-3 hidden">Level</th>
+                            <th class="px-4 py-3">SY</th> 
+                            <th class="px-4 py-3">Sem</th> 
                             <th class="px-4 py-3 text-right">Assessment</th>
                             <th class="px-4 py-3 text-right">Total Paid</th>
                             <th class="px-4 py-3 text-right">Current Balance</th>
@@ -249,22 +251,29 @@ if(isset($_POST['action_type'])){
                     $strQry="SELECT cs.csid, cs.studentid, cs.fname, cs.mname, cs.lname, 
                                 (SELECT program FROM offerings WHERE cid=cs.cid) as program,
                                 (SELECT glevel FROM gradelevel WHERE gid=cs.gid) as glevel,
-                                (SELECT COUNT(*) FROM student_subjects WHERE csid=cs.csid) as subject_count,
-                                (SELECT IFNULL(SUM(price), 0) FROM student_subjects WHERE csid=cs.csid) as total_tuition,
+                                sb.total_fee as assessment, 
+                                sb.amount_paid as paid, 
+                                (sb.total_fee - sb.amount_paid) as balance,
+                                (SELECT syname FROM sy WHERE syid = sb.syid) as syname,
+                                (SELECT semester FROM sem WHERE sid = sb.sid) as semester,
                                 (SELECT COUNT(*) FROM student_subjects WHERE csid=cs.csid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%') as major_count,
-                                (SELECT IFNULL(SUM(amount), 0) FROM ledger WHERE csid=cs.csid) as total_paid
-                                FROM students cs ORDER BY cs.csid DESC";
+                                (SELECT IFNULL(SUM(price), 0) FROM student_subjects WHERE csid=cs.csid) as total_tuition
+                                FROM students cs 
+                                INNER JOIN student_balances sb ON cs.csid = sb.csid
+                                ORDER BY cs.csid DESC, sb.syid DESC, sb.sid DESC";
+                                
                     $qryRes=$dbcon->query($strQry);
                     while($row=$qryRes->fetch_assoc()){
-                        if (intval($row['subject_count']) === 0) continue;
 
                         $fullName = trim(($row['lname'] ?? '') . ", " . ($row['fname'] ?? '') . " " . ($row['mname'] ?? ''));
-                        $tuition = floatval($row['total_tuition']);
-                        $misc = 9000.00;
-                        $lab = intval($row['major_count']) * 540.00;
-                        $assessment = $tuition + $misc + $lab;
-                        $paid = floatval($row['total_paid']);
-                        $balance = $assessment - $paid;
+                        
+                        $assessment = floatval($row['assessment']);
+                        $paid = floatval($row['paid']);
+                        $balance = floatval($row['balance']);
+                        
+                        $tuition = floatval($row['total_tuition'] ?? 0);
+                        $major_count = intval($row['major_count'] ?? 0);
+
                         $balColor = ($balance <= 0) ? 'text-green-600 font-bold' : 'text-red-600 font-bold';
                         ?>
                         <tr class="hover:bg-gray-50 transition duration-150">
@@ -272,6 +281,10 @@ if(isset($_POST['action_type'])){
                             <td class="px-4 py-3 font-semibold text-gray-900"><?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8');?></td>
                             <td class="px-4 py-3 text-green-700 font-semibold"><?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
                             <td class="px-4 py-3 hidden"><?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8');?></td>
+                            
+                            <td class="px-4 py-3 font-medium text-gray-600"><?php echo htmlspecialchars($row['syname'] ?? 'N/A', ENT_QUOTES, 'UTF-8');?></td>
+                            <td class="px-4 py-3 font-medium text-gray-600"><?php echo htmlspecialchars($row['semester'] ?? 'N/A', ENT_QUOTES, 'UTF-8');?></td>
+
                             <td class="px-4 py-3 text-right font-medium text-gray-800"><?php echo number_format($assessment, 2); ?> ₱</td>
                             <td class="px-4 py-3 text-right text-blue-600 font-medium"><?php echo number_format($paid, 2); ?> ₱</td>
                             <td class="px-4 py-3 text-right <?php echo $balColor; ?>"><?php echo number_format($balance, 2); ?> ₱</td>
@@ -293,7 +306,7 @@ if(isset($_POST['action_type'])){
                                             data-program="<?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-level="<?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES, 'UTF-8'); ?>"
                                             data-tuition="<?php echo $tuition; ?>"
-                                            data-majors="<?php echo $row['major_count']; ?>"
+                                            data-majors="<?php echo $major_count; ?>"
                                             data-assessment="<?php echo $assessment; ?>"
                                             data-paid="<?php echo $paid; ?>"
                                             data-balance="<?php echo $balance; ?>">
@@ -306,7 +319,7 @@ if(isset($_POST['action_type'])){
                     }
                     ?>
                     </tbody>
-                </table>                            
+                </table>
             </div>
         </div>
     </div>

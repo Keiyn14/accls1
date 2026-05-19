@@ -106,82 +106,86 @@ $defaultPic = "../assets/logo.png";
     </div>
 
     <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-        <div class="bg-gradient-to-r from-green-700 to-green-800 px-6 py-4">
+        <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
             <h3 class="text-white text-lg font-semibold">Ledger Summaries & Comprehensive Reports Dashboard</h3>
         </div>
         <div class="p-6">
             <div class="overflow-x-auto">
-                <table class="w-full border-collapse text-sm text-gray-800" id="dataTables-example">
-                    <thead>
-                        <tr class="bg-gray-100 border-b-2 border-gray-300 text-left text-sm font-bold uppercase tracking-wider text-gray-700">
-                            <th class="px-4 py-3 w-12 text-center">#</th>
-                            <th class="px-4 py-3">Student ID</th>
-                            <th class="px-4 py-3">Learner Name</th>
-                            <th class="px-4 py-3">Course/Program</th>
-                            <th class="px-4 py-3 hidden">Department</th>
-                            <th class="px-4 py-3 hidden">School Year</th>
-                            <th class="px-4 py-3 hidden">Semester</th>
-                            <th class="px-4 py-3 text-right">Assessment</th>
-                            <th class="px-4 py-3 text-right">Total Paid</th>
-                            <th class="px-4 py-3 text-right">Remaining Balance</th>
-                            <th class="px-4 py-3 text-center">Status</th>
+                <table class="w-full text-sm text-left text-gray-700" id="dataTables-example">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-200 border-b-2 border-gray-300">
+                        <tr>
+                            <th scope="col" class="px-4 py-3 font-bold rounded-tl-lg">Student ID</th>
+                            <th scope="col" class="px-4 py-3 font-bold">Full Name</th>
+                            <th scope="col" class="px-4 py-3 font-bold">Course/Program</th>
+                            <th scope="col" class="px-4 py-3 font-bold text-center hidden">Level</th>
+                            <th scope="col" class="px-4 py-3 font-bold text-center">SY</th>
+                            <th scope="col" class="px-4 py-3 font-bold text-center">Sem</th>
+                            <th scope="col" class="px-4 py-3 font-bold text-right">Tuition & Fees</th>
+                            <th scope="col" class="px-4 py-3 font-bold text-right">Total Remittance</th>
+                            <th scope="col" class="px-4 py-3 font-bold text-right rounded-tr-lg">Remaining Balance</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-gray-200 text-gray-700">
-                        <?php 
-                        $strSQL = "SELECT cs.csid, cs.studentid, cs.fname, cs.mname, cs.lname,
-                                   (SELECT program FROM offerings WHERE cid = cs.cid) as program,
-                                   (SELECT department FROM departments WHERE did = cs.did) as department,
-                                   (SELECT syname FROM sy WHERE syid = cs.syid) as syname,
-                                   (SELECT semester FROM sem WHERE sid = cs.sid) as semester,
-                                   (SELECT COUNT(*) FROM student_subjects WHERE csid = cs.csid) as subject_count,
-                                   (SELECT IFNULL(SUM(price), 0) FROM student_subjects WHERE csid = cs.csid) as total_tuition,
-                                   (SELECT COUNT(*) FROM student_subjects WHERE csid = cs.csid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%') as major_count,
-                                   (SELECT IFNULL(SUM(amount), 0) FROM ledger WHERE csid=cs.csid AND syid=cs.syid AND sid=cs.sid) as total_paid
-                                   FROM students cs ORDER BY cs.csid DESC";
-                                   
-                        $resSQL = $dbcon->query($strSQL);
-                        $counter = 1;
-                        
-                        if($resSQL && $resSQL->num_rows > 0) {
-                            while($r = $resSQL->fetch_assoc()) {
-                                if (intval($r['subject_count']) === 0) {
-                                    continue;
-                                }
+                    <tbody class="divide-y divide-gray-100">
+                        <?php
+                        $grandAssessment = 0;
+                        $grandPaid = 0;
+                        $grandBalance = 0;
 
-                                $studentName = trim(($r['lname'] ?? '') . ", " . ($r['fname'] ?? '') . " " . ($r['mname'] ?? ''));
-                                $tuition = floatval($r['total_tuition']);
-                                $assessment = $tuition + 9000.00 + (intval($r['major_count']) * 540.00);
-                                $paid = floatval($r['total_paid']);
-                                $balance = $assessment - $paid;
+                        $reportQry = "SELECT cs.csid, cs.studentid, cs.fname, cs.mname, cs.lname, 
+                                        (SELECT program FROM offerings WHERE cid=cs.cid) as program,
+                                        (SELECT glevel FROM gradelevel WHERE gid=cs.gid) as glevel,
+                                        sb.total_fee as assessment, 
+                                        sb.amount_paid as paid, 
+                                        (sb.total_fee - sb.amount_paid) as balance,
+                                        (SELECT syname FROM sy WHERE syid = sb.syid) as syname,
+                                        (SELECT semester FROM sem WHERE sid = sb.sid) as semester
+                                        FROM students cs 
+                                        INNER JOIN student_balances sb ON cs.csid = sb.csid
+                                        ORDER BY cs.lname ASC";
+
+                        $reportRes = $dbcon->query($reportQry);
+
+                        if($reportRes && $reportRes->num_rows > 0) {
+                            while($row = $reportRes->fetch_assoc()){
+
+                                $fullName = trim(($row['lname'] ?? '') . ", " . ($row['fname'] ?? '') . " " . ($row['mname'] ?? ''));
                                 
-                                if ($balance <= 0) {
-                                    $statusBadge = "<span class='px-2.5 py-1 text-sm font-bold bg-green-100 text-green-800 rounded-full'>Paid Up</span>";
-                                    $balColor = "text-green-600 font-bold";
-                                } else {
-                                    $statusBadge = "<span class='px-2.5 py-1 text-sm font-bold bg-red-100 text-red-800 rounded-full'>With Balance</span>";
-                                    $balColor = "text-red-600 font-bold";
-                                }
-                                ?>
-                                <tr class="hover:bg-gray-50 transition duration-150">
-                                    <td class="px-4 py-3 text-center text-gray-400 font-medium"><?php echo $counter; ?></td>
-                                    <td class="px-4 py-3 font-semibold text-gray-700"><?php echo htmlspecialchars($r['studentid'] ?? '', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td class="px-4 py-3 font-semibold text-gray-900"><?php echo htmlspecialchars($studentName, ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td class="px-4 py-3 text-green-700 font-semibold"><?php echo htmlspecialchars($r['program'] ?? 'N/A', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td class="px-4 py-3 hidden"><?php echo htmlspecialchars($r['department'] ?? 'N/A', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td class="px-4 py-3 hidden"><?php echo htmlspecialchars($r['syname'] ?? 'N/A', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td class="px-4 py-3 hidden"><?php echo htmlspecialchars($r['semester'] ?? 'N/A', ENT_QUOTES, 'UTF-8'); ?></td>
-                                    <td class="px-4 py-3 text-right font-medium"><?php echo number_format($assessment, 2); ?> ₱</td>
-                                    <td class="px-4 py-3 text-right font-medium text-blue-600"><?php echo number_format($paid, 2); ?> ₱</td>
-                                    <td class="px-4 py-3 text-right <?php echo $balColor; ?>"><?php echo number_format($balance, 2); ?> ₱</td>
-                                    <td class="px-4 py-3 text-center"><?php echo $statusBadge; ?></td>
-                                </tr>
-                                <?php
-                                $counter++;
+                                $assessment = floatval($row['assessment']);
+                                $paid = floatval($row['paid']);
+                                $balance = floatval($row['balance']);
+
+                                $grandAssessment += $assessment;
+                                $grandPaid += $paid;
+                                $grandBalance += $balance;
+                                
+                                $balClass = ($balance <= 0) ? 'text-green-600 font-bold bg-green-50' : 'text-red-600 font-bold bg-red-50';
+                        ?>
+                            <tr class="hover:bg-blue-50 transition-colors duration-150">
+                                <td class="px-4 py-3 font-medium whitespace-nowrap text-gray-900"><?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES); ?></td>
+                                <td class="px-4 py-3 font-semibold text-gray-800"><?php echo htmlspecialchars($fullName, ENT_QUOTES); ?></td>
+                                <td class="px-4 py-3"><span class="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-md text-xs font-medium border border-gray-200"><?php echo htmlspecialchars($row['program'] ?? '', ENT_QUOTES); ?></span></td>
+                                <td class="px-4 py-3 text-center text-gray-500 hidden"><?php echo htmlspecialchars($row['glevel'] ?? '', ENT_QUOTES); ?></td>
+                                
+                                <td class="px-4 py-3 text-center text-gray-600 font-medium"><?php echo htmlspecialchars($row['syname'] ?? 'N/A', ENT_QUOTES); ?></td>
+                                <td class="px-4 py-3 text-center text-gray-600 font-medium"><?php echo htmlspecialchars($row['semester'] ?? 'N/A', ENT_QUOTES); ?></td>
+
+                                <td class="px-4 py-3 text-right font-medium text-gray-700"><?php echo number_format($assessment, 2); ?></td>
+                                <td class="px-4 py-3 text-right font-medium text-blue-600"><?php echo number_format($paid, 2); ?></td>
+                                <td class="px-4 py-3 text-right <?php echo $balClass; ?>"><?php echo number_format($balance, 2); ?></td>
+                            </tr>
+                        <?php 
                             }
-                        }
+                        } 
                         ?>
                     </tbody>
+                    <tfoot class="bg-gray-50 border-t-2 border-gray-300 font-bold text-gray-800 shadow-inner">
+                        <tr>
+                            <td colspan="6" class="px-4 py-4 text-right uppercase tracking-wider text-xs">Total Accumulation:</td>
+                            <td class="px-4 py-4 text-right text-gray-900"><?php echo number_format($grandAssessment, 2); ?></td>
+                            <td class="px-4 py-4 text-right text-blue-700"><?php echo number_format($grandPaid, 2); ?></td>
+                            <td class="px-4 py-4 text-right text-red-600"><?php echo number_format($grandBalance, 2); ?></td>
+                        </tr>
+                    </tfoot>
                 </table>
             </div>
         </div>

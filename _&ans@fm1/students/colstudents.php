@@ -1,12 +1,9 @@
 <?php 
 // =========================================================================
-// 🚀 AJAX ENGINE HANDLING BLOCKS (KEEPS SESSION ROUTING PARAMS ACTIVE)
+// 🚀 AJAX ENGINE HANDLING BLOCKS 
 // =========================================================================
 if(isset($_POST['action_type'])){
-    // 🧼 BUFFER PURGE: Clear out any pre-rendered template buffers if present
-    while (ob_get_level()) {
-        ob_end_clean();
-    }
+    while (ob_get_level()) { ob_end_clean(); } // Clear buffers to prevent JSON corruption
 
     if($_POST['action_type'] == "fetch_catalog_subjects"){
         $cid = intval($_POST['cid']);
@@ -26,19 +23,40 @@ if(isset($_POST['action_type'])){
         exit();
     }
 
-    if($_POST['action_type'] == "add_subject"){
+    if($_POST['action_type'] == "fetch_subjects"){
         $csid = intval($_POST['subject_csid']);
-        $subCode = $dbcon->real_escape_string(trim($_POST['subject_code']));
+        $output = [];
         
-        // 1. Get the current active school year and semester variables directly from app parameters
-        // These track exactly what term badge matches your system configurations
         $syQry = $dbcon->query("SELECT syid FROM sy WHERE status='Active' LIMIT 1");
         $semQry = $dbcon->query("SELECT sid FROM sem WHERE status='Active' LIMIT 1");
         $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
         $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
 
-        // 2. 🛡️ PREVIOUS SEMESTER OUTSTANDING BALANCE CHECKER
-        // Scans all previous ledger terms to check for outstanding debt balances
+        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid ORDER BY ssid DESC");
+        if($res){
+            while($r = $res->fetch_assoc()){
+                $output[] = [
+                    'ssid'          => $r['ssid'],
+                    'subject_code'  => $r['subject_code'],
+                    'subject_title' => $r['subject_description'], 
+                    'units'         => $r['units'],
+                    'price'         => $r['price']
+                ];
+            }
+        }
+        echo json_encode($output);
+        exit();
+    }
+
+    if($_POST['action_type'] == "add_subject"){
+        $csid = intval($_POST['subject_csid']);
+        $subCode = $dbcon->real_escape_string(trim($_POST['subject_code']));
+        
+        $syQry = $dbcon->query("SELECT syid FROM sy WHERE status='Active' LIMIT 1");
+        $semQry = $dbcon->query("SELECT sid FROM sem WHERE status='Active' LIMIT 1");
+        $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
+        $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
+
         $balanceCheck = $dbcon->query("
             SELECT b.*, sy.syname, sem.semester 
             FROM student_balances b
@@ -57,16 +75,10 @@ if(isset($_POST['action_type'])){
                     'balance' => floatval($bRow['total_fee'] - $bRow['amount_paid'])
                 ];
             }
-            // Block data propagation and return array details safely to Javascript client handlers
-            echo json_encode([
-                "status" => "blocked", 
-                "message" => "Student has an outstanding balance from a previous term.", 
-                "records" => $arrears
-            ]);
+            echo json_encode(["status" => "blocked", "message" => "Student has an outstanding balance from a previous term.", "records" => $arrears]);
             exit();
         }
 
-        // 3. Check for exact matching subject within the curriculum list
         $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
         $studentData = $studentQry->fetch_assoc();
         $cid = intval($studentData['cid'] ?? 0);
@@ -79,35 +91,35 @@ if(isset($_POST['action_type'])){
             $subUnits = intval($catalog['units']);
             $subPrice = floatval($catalog['price']);
             
-            // Auto-upgrade structure column definitions to hold historical markers
-            $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
-                ssid INT AUTO_INCREMENT PRIMARY KEY,
-                csid INT NOT NULL,
-                syid INT NOT NULL,
-                sid INT NOT NULL,
-                subject_code VARCHAR(50) NOT NULL,
-                subject_description VARCHAR(255) NOT NULL,
-                units INT NOT NULL,
-                price DECIMAL(10,2) NOT NULL DEFAULT 0.00
-            )");
-            
-            // Check for direct registration row duplicates before insertion 
             $duplicateCheck = $dbcon->query("SELECT ssid FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid AND subject_code = '$subCode'");
             if($duplicateCheck && $duplicateCheck->num_rows > 0) {
-                echo json_encode(["status" => "error", "message" => "This subject is already registered under this student's active enrollment term schedule."]);
+                echo json_encode(["status" => "error", "message" => "This subject is already registered."]);
                 exit();
             }
 
-            // Save the subject under the active School Year ($current_syid) and Semester ($current_sid)
             $query = "INSERT INTO student_subjects (csid, syid, sid, subject_code, subject_description, units, price) 
                       VALUES ($csid, $current_syid, $current_sid, '$subCode', '$subDesc', $subUnits, $subPrice)";
                       
             if($dbcon->query($query)){
-                // Keep ledger accounts calculated up to date
+                $tuition = 0.00;
+                $majorCount = 0;
+                
+                $calcQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as total_tuition FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
+                if ($calcQry && $row = $calcQry->fetch_assoc()) {
+                    $tuition = floatval($row['total_tuition']);
+                }
+
+                $majorQry = $dbcon->query("SELECT COUNT(*) as major_count FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%'");
+                if ($majorQry && $mrow = $majorQry->fetch_assoc()) {
+                    $majorCount = intval($mrow['major_count']);
+                }
+                
+                $newTotalAssessment = $tuition + 9000.00 + ($majorCount * 540.00);
+
                 $dbcon->query("
                     INSERT INTO student_balances (csid, syid, sid, total_fee, amount_paid)
-                    VALUES ($csid, $current_syid, $current_sid, $subPrice, 0.00)
-                    ON DUPLICATE KEY UPDATE total_fee = total_fee + $subPrice
+                    VALUES ($csid, $current_syid, $current_sid, $newTotalAssessment, 0.00)
+                    ON DUPLICATE KEY UPDATE total_fee = $newTotalAssessment
                 ");
 
                 echo json_encode(["status" => "success"]);
@@ -115,52 +127,50 @@ if(isset($_POST['action_type'])){
                 echo json_encode(["status" => "error", "message" => $dbcon->error]);
             }
         } else {
-            echo json_encode(["status" => "error", "message" => "Target subject variant row not registered inside master catalog table reference."]);
+            echo json_encode(["status" => "error", "message" => "Target subject variant row not registered."]);
         }
         exit(); 
     }
 
-    if($_POST['action_type'] == "fetch_subjects"){
-        $csid = intval($_POST['subject_csid']);
-        $output = [];
-        
-        // Dynamic fetch matching the current active school year and semester configuration context rules
-        $syQry = $dbcon->query("SELECT syid FROM sy WHERE status='Active' LIMIT 1");
-        $semQry = $dbcon->query("SELECT sid FROM sem WHERE status='Active' LIMIT 1");
-        $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
-        $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
-
-        $dbcon->query("CREATE TABLE IF NOT EXISTS student_subjects (
-            ssid INT AUTO_INCREMENT PRIMARY KEY,
-            csid INT NOT NULL,
-            syid INT NOT NULL,
-            sid INT NOT NULL,
-            subject_code VARCHAR(50) NOT NULL,
-            subject_description VARCHAR(255) NOT NULL,
-            units INT NOT NULL,
-            price DECIMAL(10,2) NOT NULL DEFAULT 0.00
-        )");
-
-        // Crucial Update: Filter using current syid and sid so history isn't overwritten or displayed unexpectedly
-        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid ORDER BY ssid DESC");
-        if($res){
-            while($r = $res->fetch_assoc()){
-                $output[] = [
-                    'ssid'          => $r['ssid'],
-                    'subject_code'  => $r['subject_code'],
-                    'subject_title' => $r['subject_description'], 
-                    'units'         => $r['units'],
-                    'price'         => $r['price']
-                ];
-            }
-        }
-        echo json_encode($output);
-        exit();
-    }
-
     if($_POST['action_type'] == "remove_subject"){
         $ssid = intval($_POST['ssid']);
-        $dbcon->query("DELETE FROM student_subjects WHERE ssid = $ssid");
+        
+        $subInfo = $dbcon->query("SELECT csid, syid, sid FROM student_subjects WHERE ssid = $ssid");
+        if($subInfo && $subInfo->num_rows > 0) {
+            $row = $subInfo->fetch_assoc();
+            $csid = intval($row['csid']);
+            $current_syid = intval($row['syid']);
+            $current_sid = intval($row['sid']);
+
+            $dbcon->query("DELETE FROM student_subjects WHERE ssid = $ssid");
+
+            $checkEnrolled = $dbcon->query("SELECT COUNT(*) as sub_count FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
+            $enrolledCount = 0;
+            if ($checkEnrolled && $ecRow = $checkEnrolled->fetch_assoc()) {
+                $enrolledCount = intval($ecRow['sub_count']);
+            }
+
+            if ($enrolledCount > 0) {
+                $tuition = 0.00;
+                $majorCount = 0;
+                
+                $calcQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as total_tuition FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
+                if ($calcQry && $tRow = $calcQry->fetch_assoc()) {
+                    $tuition = floatval($tRow['total_tuition']);
+                }
+
+                $majorQry = $dbcon->query("SELECT COUNT(*) as major_count FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%'");
+                if ($majorQry && $mrow = $majorQry->fetch_assoc()) {
+                    $majorCount = intval($mrow['major_count']);
+                }
+                
+                $newTotalAssessment = $tuition + 9000.00 + ($majorCount * 540.00);
+
+                $dbcon->query("UPDATE student_balances SET total_fee = $newTotalAssessment WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
+            } else {
+                $dbcon->query("UPDATE student_balances SET total_fee = 0.00 WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
+            }
+        }
         echo json_encode(["status" => "success"]);
         exit();
     }
@@ -806,6 +816,13 @@ if(isset($_POST['action_type'])){
                     <div><b>ID Number:</b> <span id="sub_student_id" class="font-semibold"></span></div>
                     <div><b>Program:</b> <span id="sub_program" class="font-semibold"></span></div>
                     <div><b>Year Level:</b> <span id="sub_glevel" class="font-semibold"></span></div>
+                    
+                    <div class="md:col-span-2 border-t border-purple-200 mt-2 pt-2">
+                        <b class="text-purple-800">Enrollment Term:</b> 
+                        <span class="font-bold text-purple-900 bg-purple-200 px-2 py-0.5 rounded ml-1">
+                            <?php echo htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); ?> &mdash; <?php echo htmlspecialchars($cssemester ?? '', ENT_QUOTES, 'UTF-8'); ?>
+                        </span>
+                    </div>
                 </div>
 
                 <form id="ajaxSubjectForm" onsubmit="saveSubjectLoad(event)" class="mb-6 bg-gray-50 p-5 rounded-xl border border-gray-200 space-y-4 shadow-sm">
