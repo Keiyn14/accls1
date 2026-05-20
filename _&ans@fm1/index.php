@@ -79,6 +79,7 @@ if (!isset($_SESSION['uid']) || empty($_SESSION['uid'])) {
                 }elseif($pgload=="gradelevel"){ include "glevel/gradelevel.php";
                 }elseif($pgload=="collegestudents"){ include "students/colstudents.php";
                 }elseif($pgload=="subjectscatalog"){ include "students/subjects_catalog.php";
+                }elseif($pgload=="fees"){ include "students/fees.php"; 
                 }elseif($pgload=="status"){ include "status/stats.php";
                 }elseif($pgload=="Departments"){ include "departments/department.php";
                 }elseif($pgload=="collegeledger"){ include "ledger/college.php";

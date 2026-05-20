@@ -7,8 +7,7 @@ if ($currentLink === '') {
     $currentLink = strtolower($currentLinkRaw);
 }
 // 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting or the subject catalog is active
-$openLedgerSettings = preg_match('/schoolyear|semester|departments|offerings|gradelevel|status|subjectscatalog/', $currentLink) ? 'block' : 'hidden';
-$openUsers = preg_match('/userroles|ledgerusers/', $currentLink) ? 'block' : 'hidden';
+$openLedgerSettings = preg_match('/schoolyear|semester|departments|offerings|gradelevel|status|subjectscatalog|fees/', $currentLink) ? 'block' : 'hidden';$openUsers = preg_match('/userroles|ledgerusers/', $currentLink) ? 'block' : 'hidden';
 $ledgerSettingsIcon = $openLedgerSettings === 'block' ? 'rotate-90' : '';
 $usersIcon = $openUsers === 'block' ? 'rotate-90' : '';
 
@@ -65,6 +64,9 @@ function navActive($page, $currentLink) {
 			
 			<?php $pagename=encCode("subjectscatalog");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('subjectscatalog',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Subjects Catalog </a></li>
+
+			<?php $pagename=encCode("fees");?>
+			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('fees',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Fees Management </a></li>
 
 			<?php $pagename=encCode("gradelevel");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('gradelevel',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Grade Level </a></li>

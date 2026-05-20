@@ -32,6 +32,20 @@ if(isset($_POST['action_type'])){
         $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
         $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
 
+        // 1. DYNAMIC FEE LOOKUP FOR UI
+        $misc_fee = 0; $other_fee = 0;
+        $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
+        if($studentQry && $studentQry->num_rows > 0) {
+            $cid = intval(($studentQry->fetch_assoc())['cid']);
+            $feeQry = $dbcon->query("SELECT fee_type, amount FROM fees WHERE cid = $cid");
+            if($feeQry) {
+                while($f = $feeQry->fetch_assoc()){
+                    if($f['fee_type'] == 'Miscellaneous') $misc_fee = floatval($f['amount']);
+                    if($f['fee_type'] == 'Other Fees') $other_fee = floatval($f['amount']);
+                }
+            }
+        }
+
         $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid ORDER BY ssid DESC");
         if($res){
             while($r = $res->fetch_assoc()){
@@ -44,7 +58,13 @@ if(isset($_POST['action_type'])){
                 ];
             }
         }
-        echo json_encode($output);
+        
+        // Return both the subject array AND the fee variables to the Javascript UI
+        echo json_encode([
+            "subjects" => $output,
+            "misc_fee" => $misc_fee,
+            "other_fee" => $other_fee
+        ]);
         exit();
     }
 
@@ -102,19 +122,22 @@ if(isset($_POST['action_type'])){
                       
             if($dbcon->query($query)){
                 $tuition = 0.00;
-                $majorCount = 0;
-                
                 $calcQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as total_tuition FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
                 if ($calcQry && $row = $calcQry->fetch_assoc()) {
                     $tuition = floatval($row['total_tuition']);
                 }
 
-                $majorQry = $dbcon->query("SELECT COUNT(*) as major_count FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%'");
-                if ($majorQry && $mrow = $majorQry->fetch_assoc()) {
-                    $majorCount = intval($mrow['major_count']);
+                // 2. DYNAMIC FEE LOOKUP FOR DATABASE UPDATE
+                $misc_fee = 0; $other_fee = 0;
+                $feeQry = $dbcon->query("SELECT fee_type, amount FROM fees WHERE cid = $cid");
+                if($feeQry) {
+                    while($f = $feeQry->fetch_assoc()){
+                        if($f['fee_type'] == 'Miscellaneous') $misc_fee = floatval($f['amount']);
+                        if($f['fee_type'] == 'Other Fees') $other_fee = floatval($f['amount']);
+                    }
                 }
                 
-                $newTotalAssessment = $tuition + 9000.00 + ($majorCount * 540.00);
+                $newTotalAssessment = $tuition + $misc_fee + $other_fee;
 
                 $dbcon->query("
                     INSERT INTO student_balances (csid, syid, sid, total_fee, amount_paid)
@@ -152,19 +175,26 @@ if(isset($_POST['action_type'])){
 
             if ($enrolledCount > 0) {
                 $tuition = 0.00;
-                $majorCount = 0;
                 
                 $calcQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as total_tuition FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
                 if ($calcQry && $tRow = $calcQry->fetch_assoc()) {
                     $tuition = floatval($tRow['total_tuition']);
                 }
 
-                $majorQry = $dbcon->query("SELECT COUNT(*) as major_count FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid AND subject_code NOT LIKE 'GE%' AND subject_code NOT LIKE 'GEE%'");
-                if ($majorQry && $mrow = $majorQry->fetch_assoc()) {
-                    $majorCount = intval($mrow['major_count']);
+                // 3. DYNAMIC FEE LOOKUP FOR DATABASE UPDATE
+                $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
+                $cid = ($studentQry && $studentQry->num_rows > 0) ? intval(($studentQry->fetch_assoc())['cid']) : 0;
+
+                $misc_fee = 0; $other_fee = 0;
+                $feeQry = $dbcon->query("SELECT fee_type, amount FROM fees WHERE cid = $cid");
+                if($feeQry) {
+                    while($f = $feeQry->fetch_assoc()){
+                        if($f['fee_type'] == 'Miscellaneous') $misc_fee = floatval($f['amount']);
+                        if($f['fee_type'] == 'Other Fees') $other_fee = floatval($f['amount']);
+                    }
                 }
                 
-                $newTotalAssessment = $tuition + 9000.00 + ($majorCount * 540.00);
+                $newTotalAssessment = $tuition + $misc_fee + $other_fee;
 
                 $dbcon->query("UPDATE student_balances SET total_fee = $newTotalAssessment WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
             } else {
@@ -870,9 +900,9 @@ if(isset($_POST['action_type'])){
                     <h5 class="text-xs font-bold uppercase tracking-wider text-gray-500 mb-2 border-b pb-1">Assessment Sheet summary of fees</h5>
                     <div class="space-y-1.5">
                         <div class="flex justify-between"><span>Tuition fee:</span><span id="fee_tuition" class="font-semibold text-gray-900">0.00 PHP</span></div>
-                        <div class="flex justify-between"><span>Miscellanous fees:</span><span id="fee_misc" class="font-semibold text-gray-900">9,000.00 PHP</span></div>
-                        <div class="flex justify-between"><span>Laboratory fees (<span id="major_count">0</span> Major Subjects):</span><span id="fee_lab" class="font-semibold text-gray-900">0.00 PHP</span></div>
-                        <div class="flex justify-between border-t pt-2 text-base font-bold text-green-700"><span>Total Term Bill:</span><span id="fee_total">9,000.00 PHP</span></div>
+                        <div class="flex justify-between"><span>Miscellaneous fees:</span><span id="fee_misc" class="font-semibold text-gray-900">0.00 PHP</span></div>
+                        <div class="flex justify-between"><span>Other fees:</span><span id="fee_lab" class="font-semibold text-gray-900">0.00 PHP</span></div>
+                        <div class="flex justify-between border-t pt-2 text-base font-bold text-green-700"><span>Total Term Bill:</span><span id="fee_total">0.00 PHP</span></div>
                     </div>
                 </div>
             </div>
@@ -944,31 +974,36 @@ if(isset($_POST['action_type'])){
 
 <script>
 // 🚀 BACKWARDS SCANNED DATA STRUCT EXTRACTION ENGINE: Immunizes responses against layouts and warnings
+// 🚀 BULLETPROOF BACKWARD-SCANNING JSON EXTRACTOR
+// Completely immune to prepended HTML, CSS, Javascript, and PHP warnings.
 function parsePollutedJson(response) {
     if (typeof response !== 'string') return response;
+    var str = response.trim();
     
-    var cleanStr = response.trim();
-    var lastObj = cleanStr.lastIndexOf('}');
-    var lastArr = cleanStr.lastIndexOf(']');
-    var end = Math.max(lastObj, lastArr);
+    // 1. Try parsing the whole thing first (if it's already clean)
+    try { 
+        return JSON.parse(str); 
+    } catch(e) {}
     
-    if (end === -1) {
-        throw new Error("No closing JSON structure token detected inside response stream.");
+    // 2. Scan backwards from the end of the text
+    for (var i = str.length - 1; i >= 0; i--) {
+        var char = str.charAt(i);
+        
+        // 3. Every time we hit an opening bracket, test if the remainder is valid JSON
+        if (char === '{' || char === '[') {
+            try {
+                var attempt = str.substring(i);
+                var parsedData = JSON.parse(attempt);
+                
+                // If JSON.parse succeeds without crashing, we found the perfect outer boundary!
+                return parsedData;
+            } catch(e) {
+                // If it fails (e.g., it was an inner bracket), silently continue scanning backwards
+            }
+        }
     }
     
-    var startToken = -1;
-    if (cleanStr.charAt(end) === '}') {
-        startToken = cleanStr.lastIndexOf('{', end);
-    } else if (cleanStr.charAt(end) === ']') {
-        startToken = cleanStr.lastIndexOf('[', end);
-    }
-    
-    if (startToken === -1) {
-        throw new Error("No matching open boundary brace found.");
-    }
-    
-    var targetJson = cleanStr.substring(startToken, end + 1);
-    return JSON.parse(targetJson);
+    throw new Error("Critical: Failed to extract valid JSON from the response stream.");
 }
 
 function smartPrint() {
@@ -1284,27 +1319,23 @@ function fetchSubjectLoadList(csid) {
 
             var html = '';
             var totalTuition = 0;
-            var majorCount = 0;
-            var flatMisc = 9000;
             
-            // Reset our tracking array
+            // 4. RETRIEVE DYNAMIC FEES FROM PHP RESPONSE
+            var subs = data.subjects || [];
+            var flatMisc = parseFloat(data.misc_fee) || 0;
+            var otherFee = parseFloat(data.other_fee) || 0;
+            
             window.enrolledSubjectCodes = [];
             
-            if(!data || data.length === 0) {
+            if(!subs || subs.length === 0) {
                 html = '<tr><td colspan="5" class="p-4 text-center text-gray-400 italic">No subject courses added to this curriculum load yet.</td></tr>';
             } else {
-                data.forEach(function(row) {
+                subs.forEach(function(row) {
                     var currentPrice = parseFloat(row.price) || 0;
                     totalTuition += currentPrice;
                     
-                    // Track this subject so the catalog can gray it out
                     window.enrolledSubjectCodes.push(String(row.subject_code).trim());
                     
-                    var codeString = String(row.subject_code).toUpperCase().trim();
-                    if (!codeString.startsWith('GE') && !codeString.startsWith('GEE')) {
-                        majorCount++;
-                    }
-
                     html += `<tr class="hover:bg-gray-50 transition border-b border-gray-100">
                         <td class="p-3 font-semibold text-purple-900">${escapeHtml(row.subject_code)}</td>
                         <td class="p-3 text-gray-700">${escapeHtml(row.subject_title)}</td>
@@ -1318,15 +1349,14 @@ function fetchSubjectLoadList(csid) {
             }
             document.getElementById('subjects_table_body').innerHTML = html;
             
-            var totalLab = majorCount * 540;
-            var grandTotal = totalTuition + flatMisc + totalLab;
+            var grandTotal = totalTuition + flatMisc + otherFee;
             
+            // Render to HTML elements
             document.getElementById('fee_tuition').innerText = totalTuition.toFixed(2) + " PHP";
-            document.getElementById('major_count').innerText = majorCount;
-            document.getElementById('fee_lab').innerText = totalLab.toFixed(2) + " PHP";
+            document.getElementById('fee_misc').innerText = flatMisc.toFixed(2) + " PHP";
+            document.getElementById('fee_lab').innerText = otherFee.toFixed(2) + " PHP";
             document.getElementById('fee_total').innerText = grandTotal.toFixed(2) + " PHP";
             
-            // 🚀 Fire the sync logic to update the catalog visual states!
             applyGrayOutLogic();
         },
         error: function(xhr) {
@@ -1440,11 +1470,10 @@ function printSubjectSummary() {
     var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
     var logoSrc = "<?php echo $defaultPic; ?>";
 
-    // 1. Calculate Total Units from the table
     var totalUnits = 0;
     $('#subjects_table_body tr').each(function() {
         var tds = $(this).find('td');
-        if(tds.length >= 3) { // Ensure it's not the "No subjects" empty row
+        if(tds.length >= 3) {
             var unitsText = $(tds[2]).text().trim();
             var units = parseInt(unitsText);
             if(!isNaN(units)) {
@@ -1453,7 +1482,6 @@ function printSubjectSummary() {
         }
     });
 
-    // Extract innerHTML and append the Total Units row directly to the printout table
     var tableHTML = document.getElementById('subjects_table_body').innerHTML;
     if (totalUnits > 0) {
         tableHTML += `<tr>
@@ -1462,12 +1490,11 @@ function printSubjectSummary() {
         </tr>`;
     }
 
-    // 2. Fetch Fee Breakdown directly from the loaded UI calculations
+    // 5. CAPTURE DYNAMIC FEES FOR PRINT RECEIPT
     var tuitionFee = document.getElementById('fee_tuition').innerText || "0.00 PHP";
-    var labFee = document.getElementById('fee_lab').innerText || "0.00 PHP";
-    var majorCount = document.getElementById('major_count').innerText || "0";
+    var miscFee = document.getElementById('fee_misc').innerText || "0.00 PHP";
+    var otherFee = document.getElementById('fee_lab').innerText || "0.00 PHP";
     var totalFee = document.getElementById('fee_total').innerText || "0.00 PHP";
-    var miscFee = "9,000.00 PHP"; // System's flat rate
 
     var printWindow = window.open('', '_blank');
     var html = `
@@ -1487,11 +1514,9 @@ function printSubjectSummary() {
             th, td { border: 1px solid #000; padding: 8px 10px; text-align: left; font-size: 13px; }
             th { font-weight: bold; background-color: #f3f4f6; }
             
-            /* Hide the price and action columns specifically from the innerHTML clone */
             th:nth-child(4), td:nth-child(4) { display: none !important; }
             th:nth-child(5), td:nth-child(5) { display: none !important; }
             
-            /* Fee Summary Card Styles */
             .summary-card { margin-top: 25px; border: 1px dashed #000; padding: 12px; font-size: 13px; width: 340px; margin-left: auto; background-color: #fafafa; }
             .summary-line { display: flex; justify-content: space-between; margin-bottom: 5px; }
             .summary-total { border-top: 1px dashed #000; padding-top: 6px; font-weight: bold; margin-top: 6px; font-size: 14px; color: #b91c1c; }
@@ -1529,8 +1554,8 @@ function printSubjectSummary() {
         <div class="summary-card">
             <div style="text-align: center; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 5px; margin-bottom: 8px;">Term Assessment Breakdown</div>
             <div class="summary-line"><span>Tuition (Enrolled Subjects):</span><span>${tuitionFee}</span></div>
-            <div class="summary-line"><span>Miscellaneous Flat Fee:</span><span>${miscFee}</span></div>
-            <div class="summary-line"><span>Laboratory Fees (${majorCount} Majors):</span><span>${labFee}</span></div>
+            <div class="summary-line"><span>Miscellaneous Fees:</span><span>${miscFee}</span></div>
+            <div class="summary-line"><span>Other Fees:</span><span>${otherFee}</span></div>
             <div class="summary-line summary-total"><span>Total Assessment:</span><span>${totalFee}</span></div>
         </div>
 
