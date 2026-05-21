@@ -406,41 +406,24 @@ if(isset($_POST['action_type'])){
                             <input type="date" id="payment_date" name="payment_date" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white" value="<?php echo date('Y-m-d'); ?>" required>
                         </div>
                     </div>
-                    
                     <div>
                         <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">Amount Paid (PHP) *</label>
                         <input type="number" step="0.01" min="0.01" id="payment_amount" name="payment_amount" class="w-full px-3 py-2 border border-gray-300 rounded text-base font-bold bg-white text-gray-900" placeholder="0.00" required>
+                        
                         <p id="amount_warning" class="text-xs text-red-600 font-bold mt-1 hidden"></p>
                     </div>
-                    
                     <div>
                         <label class="block text-gray-700 font-semibold mb-1 text-xs uppercase tracking-wider">Remarks / Payment Stage *</label>
-                        
-                        <input type="hidden" id="remarks" name="remarks" required>
-                        
-                        <select id="remarks_select" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white font-medium">
+                        <select id="remarks" name="remarks" class="w-full px-3 py-2 border border-gray-300 rounded text-sm bg-white font-medium" required>
                             <option value="" disabled selected>Select Remittance Descriptor...</option>
-                            <option value="Installment">Installment (Multi-Term)</option>
+                            <option value="Downpayment">Downpayment</option>
                             <option value="Full payment">Full payment</option>
                             <option value="" disabled class="text-gray-400">───────────────────────────────</option>
-                            <option value="Downpayment">Downpayment</option>
                             <option value="Prelim">Prelim</option>
                             <option value="Midterm">Midterm</option>
                             <option value="PreFinal">PreFinal</option>
                             <option value="Final">Final</option>
                         </select>
-
-                        <div id="installment_options" class="hidden mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg shadow-inner">
-                            <span class="block text-xs font-bold text-blue-900 mb-2 uppercase tracking-wider">Select Terms Covered:</span>
-                            <div class="flex flex-wrap gap-x-4 gap-y-2">
-                                <label class="inline-flex items-center cursor-pointer"><input type="checkbox" class="form-checkbox text-blue-600 h-4 w-4 installment-chk" value="Downpayment"><span class="ml-2 text-sm text-gray-800 font-medium">Downpayment</span></label>
-                                <label class="inline-flex items-center cursor-pointer"><input type="checkbox" class="form-checkbox text-blue-600 h-4 w-4 installment-chk" value="Prelim"><span class="ml-2 text-sm text-gray-800 font-medium">Prelim</span></label>
-                                <label class="inline-flex items-center cursor-pointer"><input type="checkbox" class="form-checkbox text-blue-600 h-4 w-4 installment-chk" value="Midterm"><span class="ml-2 text-sm text-gray-800 font-medium">Midterm</span></label>
-                                <label class="inline-flex items-center cursor-pointer"><input type="checkbox" class="form-checkbox text-blue-600 h-4 w-4 installment-chk" value="PreFinal"><span class="ml-2 text-sm text-gray-800 font-medium">PreFinal</span></label>
-                                <label class="inline-flex items-center cursor-pointer"><input type="checkbox" class="form-checkbox text-blue-600 h-4 w-4 installment-chk" value="Final"><span class="ml-2 text-sm text-gray-800 font-medium">Final</span></label>
-                            </div>
-                            <p id="installment_warning" class="text-xs text-red-600 font-bold mt-2 hidden">Please select at least one term to proceed.</p>
-                        </div>
                     </div>
 
                     <div class="border border-gray-200 rounded-lg overflow-hidden bg-white mt-2">
@@ -589,36 +572,6 @@ function parsePollutedJson(response) {
     throw new Error("Unable to isolate valid JSON matrix stream boundaries.");
 }
 
-// 🚀 NEW LOGIC: Dynamic string builder for Installment Checkboxes
-function updateRemarksField() {
-    let selectVal = $('#remarks_select').val();
-    let actualRemarks = $('#remarks');
-    
-    if (selectVal === 'Installment') {
-        $('#installment_options').removeClass('hidden'); // Reveal checkboxes
-        
-        let selectedTerms = [];
-        $('.installment-chk:checked').each(function() {
-            selectedTerms.push($(this).val());
-        });
-        
-        // Build the string: "Installment (Downpayment, Prelim)"
-        if (selectedTerms.length > 0) {
-            actualRemarks.val("Installment (" + selectedTerms.join(", ") + ")");
-            $('#installment_warning').addClass('hidden'); // hide warning if valid
-        } else {
-            actualRemarks.val(""); // Blank value will fail validation
-        }
-    } else {
-        // If normal single option selected, hide checkboxes and reset them
-        $('#installment_options').addClass('hidden');
-        $('.installment-chk').prop('checked', false);
-        $('#installment_warning').addClass('hidden');
-        
-        actualRemarks.val(selectVal || ""); // Just copy the normal string directly
-    }
-}
-
 function triggerPaymentModal(btn) {
     var csid = btn.getAttribute('data-csid') || '';
     document.getElementById('payment_csid').value = csid;
@@ -628,15 +581,9 @@ function triggerPaymentModal(btn) {
     var bal = parseFloat(btn.getAttribute('data-balance')) || 0;
     document.getElementById('lbl_student_balance').innerText = bal.toFixed(2) + " PHP";
     
-    // Reset all inputs cleanly
     document.getElementById('or_no').value = '';
     document.getElementById('payment_amount').value = '';
-    document.getElementById('remarks_select').value = '';
     document.getElementById('remarks').value = '';
-    
-    $('#installment_options').addClass('hidden');
-    $('.installment-chk').prop('checked', false);
-    $('#installment_warning').addClass('hidden');
     
     fetchPaymentLogsList(csid);
     openModal('paymentModal');
@@ -675,17 +622,14 @@ function savePaymentTransaction(e) {
     e.preventDefault(); 
     e.stopPropagation();
     
-    // 🛡️ Pre-submission check: Did they pick Installment but leave checkboxes empty?
-    if ($('#remarks_select').val() === 'Installment' && !$('#remarks').val()) {
-        $('#installment_warning').removeClass('hidden');
-        return; // Stop form submission completely
-    }
-
     var form = $('#ajaxPaymentForm');
     var submitBtn = form.find('button[type="submit"]');
     var originalBtnText = submitBtn.html();
     
+    // Change button text to show processing state
     submitBtn.html('Processing...').prop('disabled', true);
+
+    // Clear out any old error messages before trying again
     $('#payment-error-alert').remove();
 
     $.ajax({
@@ -697,6 +641,7 @@ function savePaymentTransaction(e) {
             var rawText = String(response).trim();
             
             try {
+                // Safely attempt to parse the server's response
                 if (typeof response === 'object' && response !== null) {
                     res = response;
                 } else {
@@ -712,15 +657,18 @@ function savePaymentTransaction(e) {
                 console.log("JSON parsing crashed due to hidden PHP characters. Relying on raw text scan.");
             }
             
+            // 🛑 AGGRESSIVE TEXT SCANNER (Bypasses all formatting bugs)
             if (!res) {
                 if (rawText.includes("Existing O.R. number") || rawText.includes("already been recorded")) {
                     res = { status: "error", message: "Existing O.R. number in the system. Please verify the receipt and enter a different number." };
                 } 
                 else if (rawText.includes('"success"')) {
+                    // If the raw text contains "success", force it through!
                     res = { status: "success" };
                 }
             }
 
+            // 🛑 DISPLAY THE RED WARNING BANNER
             if (res && res.status === "error") {
                 var errorHtml = `
                     <div id="payment-error-alert" class="mb-4 bg-red-50 border-l-4 border-red-500 p-3 rounded-r-md shadow-sm">
@@ -737,13 +685,15 @@ function savePaymentTransaction(e) {
                 return;
             } 
             
+            // ✅ SUCCESS
             if (res && res.status === "success") {
                 form[0].reset();
                 closeModal('paymentModal');
                 window.location.reload(); 
-                return; 
+                return; // Stop execution here!
             } 
             
+            // ⚠️ ULTIMATE FAILSAFE (Should basically never show up now)
             var fallbackError = `
                 <div id="payment-error-alert" class="mb-4 bg-yellow-50 border-l-4 border-yellow-500 p-3 rounded-r-md">
                     <div class="text-sm text-yellow-800 font-bold">Unrecognized Response:</div>
@@ -856,6 +806,7 @@ function filterSOAPaymentsByTerm() {
     document.getElementById('lbl_soa_total_paid').innerText = calculatedPaidTotal.toFixed(2) + " ₱";
     document.getElementById('lbl_soa_total_balance').innerText = remainingBalance.toFixed(2) + " ₱";
     
+    // Safe reference updates protecting execution path against property-of-null reference errors
     if(document.getElementById('print_paid')) { document.getElementById('print_paid').value = calculatedPaidTotal; }
     if(document.getElementById('print_balance')) { document.getElementById('print_balance').value = remainingBalance; }
 
@@ -995,6 +946,7 @@ $(document).ready(function() {
         var sySel = $('#filterSY').val() || '';
         var semSel = $('#filterSem').val() || '';
         
+        // Column Index Mapping: data[2] = Program, data[4] = SY, data[5] = Sem
         if (pSel !== '' && (data[2] || '').trim() !== pSel.trim()) return false;
         if (sySel !== '' && (data[4] || '').trim() !== sySel.trim()) return false;
         if (semSel !== '' && (data[5] || '').trim() !== semSel.trim()) return false;
@@ -1006,59 +958,57 @@ $(document).ready(function() {
         table.draw(); 
     });
 
-    // --- BINDING THE REMARKS BUILDER LOGIC ---
-    $('#remarks_select').on('change', updateRemarksField);
-    $('.installment-chk').on('change', updateRemarksField);
-
+    // Watch the Amount input field for typing inside your modal
     $('#payment_amount').on('input', function() {
         let amount = parseFloat($(this).val()) || 0;
+        
+        // Safely extract the balance directly from the label in your modal (removes commas/currency symbols)
         let balanceText = $('#lbl_student_balance').text().replace(/[^0-9.-]+/g, "");
         let balance = parseFloat(balanceText) || 0;
         
-        // 🚀 Swap this to select our UI dropdown, not the hidden input
-        let remarksDropdown = $('#remarks_select'); 
+        let remarksDropdown = $('#remarks');
         let submitBtn = $('#submit_payment_btn');
         let warningText = $('#amount_warning');
         
+        // Smart Minimum: 500, UNLESS the actual balance is lower than 500
         let minimumAllowed = Math.min(500, balance);
 
+        // Reset visual warnings first
         warningText.addClass('hidden');
         submitBtn.prop('disabled', false);
 
+        // RULE 1: Prevent exceeding balance
         if (amount > balance) {
             alert("Error: Payment cannot exceed the remaining balance of ₱" + balance.toLocaleString('en-US', {minimumFractionDigits: 2}));
-            $(this).val(balance);
-            amount = balance;     
+            
+            $(this).val(balance); // Force value back down to max balance
+            amount = balance;     // Update variable for rules below
         }
 
+        // RULE 2 & 3: Auto-dropdown and Minimum checks
         if (amount === balance && balance > 0) {
+            // Exact full payment
             remarksDropdown.val("Full payment");
+            
         } else if (amount >= 500 && amount < balance) {
-            // Only auto-select downpayment if they haven't explicitly set up an Installment structure yet
-            let currentSelection = remarksDropdown.val();
-            if(!currentSelection || currentSelection === "Full payment") {
-                remarksDropdown.val("Downpayment");
-            }
+            // Normal downpayment
+            remarksDropdown.val("Downpayment");
+            
         } else if (amount < minimumAllowed && amount > 0) {
+            // Block submission! Amount is below minimum
             warningText.text("Minimum payment allowed is ₱" + minimumAllowed.toFixed(2)).removeClass('hidden');
-            remarksDropdown.val(""); 
+            remarksDropdown.val(""); // Clear dropdown
             submitBtn.prop('disabled', true);
         }
-        
-        // Push UI changes down to the hidden input so the database receives it
-        updateRemarksField();
     });
 
+    // OPTIONAL BONUS: Reset the form completely when the modal is closed
+    // so the next student doesn't have leftover warnings!
     $('.modal-overlay').on('click', function(e) {
-        if (e.target === this || $(e.target).hasClass('text-white hover:text-gray-200')) { 
+        if (e.target === this || $(e.target).hasClass('text-white hover:text-gray-200')) { // Check if clicking close X or background
             $('#amount_warning').addClass('hidden');
-            $('#installment_warning').addClass('hidden');
             $('#submit_payment_btn').prop('disabled', false);
             $('#ajaxPaymentForm')[0].reset();
-            
-            // Re-hide our custom checkboxes when modal manually closes
-            $('#installment_options').addClass('hidden');
-            $('.installment-chk').prop('checked', false);
         }
     });
 });
