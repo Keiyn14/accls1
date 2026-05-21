@@ -73,8 +73,7 @@ if (!isset($_SESSION['uid']) || empty($_SESSION['uid'])) {
             <?php
                 if(isset($_GET['_a!%@1!2%'])){$pgload=$_GET['_a!%@1!2%'];}else{$pgload="";}
                 $pgload=decCode($pgload);
-                if($pgload=="schoolyear"){ include "sy/sy.php";
-                }elseif($pgload=="semester"){ include "sem/sem.php";
+                if($pgload=="academicperiod"){ include "sy_sem/sy_sem.php";
                 }elseif($pgload=="offerings"){ include "offerings/offerings.php";
                 }elseif($pgload=="gradelevel"){ include "glevel/gradelevel.php";
                 }elseif($pgload=="collegestudents"){ include "students/colstudents.php";

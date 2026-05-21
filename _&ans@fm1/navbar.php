@@ -6,8 +6,9 @@ $currentLink = strtolower(decCode($currentLinkRaw));
 if ($currentLink === '') {
     $currentLink = strtolower($currentLinkRaw);
 }
-// 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting or the subject catalog is active
-$openLedgerSettings = preg_match('/schoolyear|semester|departments|offerings|gradelevel|status|subjectscatalog|fees/', $currentLink) ? 'block' : 'hidden';$openUsers = preg_match('/userroles|ledgerusers/', $currentLink) ? 'block' : 'hidden';
+// 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting is active (subjectscatalog removed)
+$openLedgerSettings = preg_match('/academicperiod|departments|offerings|gradelevel|status|fees/', $currentLink) ? 'block' : 'hidden';
+$openUsers = preg_match('/userroles|ledgerusers/', $currentLink) ? 'block' : 'hidden';
 $ledgerSettingsIcon = $openLedgerSettings === 'block' ? 'rotate-90' : '';
 $usersIcon = $openUsers === 'block' ? 'rotate-90' : '';
 
@@ -50,23 +51,22 @@ function navActive($page, $currentLink) {
 			<i class="icon-angle-right transition-transform duration-200 <?php echo $ledgerSettingsIcon;?>"></i>
 		</button>
 		<ul class="<?php echo $openLedgerSettings;?> bg-green-800 rounded-lg ml-2 mt-1" id="component-nav">
-			<?php $pagename=encCode("schoolyear");?>
-			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('schoolyear',$currentLink);?>"><i class="icon-angle-right mr-2"></i> School Year </a></li>
-			
-			<?php $pagename=encCode("semester");?>
-			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('semester',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Semester </a></li>
-			
+			<?php $pagename=encCode("academicperiod");?>
+			<li class="">
+				<a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>"
+				class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('academicperiod',$currentLink);?>">
+					<i class="icon-angle-right mr-2"></i> Academic Period
+				</a>
+			</li>	
+
 			<?php $pagename=encCode("Departments");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('departments',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Departments </a></li>
 			
 			<?php $pagename=encCode("offerings");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('offerings',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Program Offerings </a></li>
-			
-			<?php $pagename=encCode("subjectscatalog");?>
-			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('subjectscatalog',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Subjects Catalog </a></li>
 
 			<?php $pagename=encCode("fees");?>
-			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('fees',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Fees Management </a></li>
+			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('fees',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Fees Catalog </a></li>
 
 			<?php $pagename=encCode("gradelevel");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('gradelevel',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Grade Level </a></li>
@@ -114,32 +114,6 @@ function toggleMenu(menuId, button) {
 </script>
 
 <style>
-.nav-item a, .nav-item button {
-	transition: all 0.2s ease;
-}
-.nav-item a:hover, .nav-item button:hover {
-	transform: translateX(5px);
-}
+.nav-item a, .nav-item button { transition: all 0.2s ease; }
+.nav-item a:hover, .nav-item button:hover { transform: translateX(5px); }
 </style>
-
-<div id="logoutModal" class="modal-overlay backdrop-blur-sm transition-opacity duration-300">
-    <div class="modal-content p-6 text-center transform scale-100 transition-transform duration-300" style="max-width: 400px;">
-        
-        <div class="w-16 h-16 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4 border-4 border-red-100">
-            <i class="icon-signout text-3xl text-red-600"></i>
-        </div>
-        
-        <h3 class="text-xl font-bold text-gray-800 mb-2">Ready to Leave?</h3>
-        <p class="text-gray-500 mb-6 text-sm">Are you sure you want to end your current session and log out of the system?</p>
-        
-        <div class="flex justify-center gap-3 w-full">
-            <button data-dismiss="modal" class="flex-1 px-5 py-2.5 rounded-lg text-gray-700 font-semibold bg-gray-100 hover:bg-gray-200 transition-colors duration-200">
-                Cancel
-            </button>
-            <a href="<?php echo accls()."/";?>" class="flex-1 px-5 py-2.5 rounded-lg text-white font-semibold bg-red-600 hover:bg-red-700 transition-colors duration-200 shadow-md hover:shadow-lg">
-                Yes, Log out
-            </a>
-        </div>
-
-    </div>
-</div>
