@@ -7,12 +7,17 @@ if ($currentLink === '') {
     $currentLink = strtolower($currentLinkRaw);
 }
 <<<<<<< HEAD
+<<<<<<< HEAD
 // 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting is active (subjectscatalog removed)
 $openLedgerSettings = preg_match('/academicperiod|departments|offerings|gradelevel|status|fees/', $currentLink) ? 'block' : 'hidden';
 =======
 // 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting or the subject catalog is active
 $openLedgerSettings = preg_match('/schoolyear|semester|departments|offerings|gradelevel|status|subjectscatalog/', $currentLink) ? 'block' : 'hidden';
 >>>>>>> parent of a4fb2c5 (updates by botilo)
+=======
+// 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting is active (subjectscatalog removed)
+$openLedgerSettings = preg_match('/academicperiod|departments|offerings|gradelevel|status|fees/', $currentLink) ? 'block' : 'hidden';
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
 $openUsers = preg_match('/userroles|ledgerusers/', $currentLink) ? 'block' : 'hidden';
 $ledgerSettingsIcon = $openLedgerSettings === 'block' ? 'rotate-90' : '';
 $usersIcon = $openUsers === 'block' ? 'rotate-90' : '';

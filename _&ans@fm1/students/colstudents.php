@@ -860,6 +860,9 @@ if(isset($_POST['action_type'])){
                         </div>
                     </div>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
                     <div class="text-right">
                         <button type="button" onclick="lookupFees()"
                                 class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm rounded-lg shadow transition duration-150 inline-flex items-center gap-2">
@@ -905,6 +908,7 @@ if(isset($_POST['action_type'])){
                     <!-- Not Found Notice -->
                     <div id="fee_not_found_box" style="display:none;" class="border border-yellow-300 bg-yellow-50 rounded-xl p-4 text-sm text-yellow-800 font-medium">
                         ⚠️ <span id="fee_not_found_msg"></span>
+<<<<<<< HEAD
 =======
                 </form>
 
@@ -932,6 +936,8 @@ if(isset($_POST['action_type'])){
                         <div class="flex justify-between"><span>Laboratory fees (<span id="major_count">0</span> Major Subjects):</span><span id="fee_lab" class="font-semibold text-gray-900">0.00 PHP</span></div>
                         <div class="flex justify-between border-t pt-2 text-base font-bold text-green-700"><span>Total Term Bill:</span><span id="fee_total">9,000.00 PHP</span></div>
 >>>>>>> parent of a4fb2c5 (updates by botilo)
+=======
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
                     </div>
                 </div>
  
@@ -1147,6 +1153,9 @@ function lookupFees() {
                 return;
             }
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
  
             if(data.status === 'found') {
                 // Build the term label from the selected option texts
@@ -1174,6 +1183,7 @@ function lookupFees() {
  
                 document.getElementById('fee_preview_box').style.display = 'block';
  
+<<<<<<< HEAD
             } else {
                 document.getElementById('fee_not_found_msg').innerText = data.message || 'No matching fee record found.';
                 document.getElementById('fee_not_found_box').style.display = 'block';
@@ -1227,6 +1237,12 @@ function lookupFees() {
             // 🚀 Fire the sync logic to update the catalog visual states!
             applyGrayOutLogic();
 >>>>>>> parent of a4fb2c5 (updates by botilo)
+=======
+            } else {
+                document.getElementById('fee_not_found_msg').innerText = data.message || 'No matching fee record found.';
+                document.getElementById('fee_not_found_box').style.display = 'block';
+            }
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
         },
         error: function(xhr) {
             console.error("Fetch failed:", xhr.statusText);
@@ -1351,6 +1367,7 @@ function printFeesSummary() {
     var level   = document.getElementById('fees_glevel').innerText;
     var logoSrc = "<?php echo $defaultPic; ?>";
 <<<<<<< HEAD
+<<<<<<< HEAD
  
     var tableHTML = document.getElementById('balance_records_body').innerHTML;
  
@@ -1386,6 +1403,11 @@ function printFeesSummary() {
     var miscFee = "9,000.00 PHP"; // System's flat rate
 
 >>>>>>> parent of a4fb2c5 (updates by botilo)
+=======
+ 
+    var tableHTML = document.getElementById('balance_records_body').innerHTML;
+ 
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
     var printWindow = window.open('', '_blank');
     var html = `
     <!DOCTYPE html>
@@ -1394,6 +1416,9 @@ function printFeesSummary() {
         <title>Fee Summary - ${idNum}</title>
         <style>
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
             body { font-family: Arial, sans-serif; margin: 40px; color: #000; line-height: 1.5; }
             .header { text-align: center; margin-bottom: 28px; position: relative; }
             .header img { position: absolute; left: 0; top: 0; width: 72px; height: 72px; object-fit: contain; }
@@ -1404,6 +1429,7 @@ function printFeesSummary() {
             th, td { border: 1px solid #000; padding: 7px 9px; text-align: left; }
             th { background: #f3f4f6; font-weight: bold; }
             td:nth-child(n+2) { text-align: right; }
+<<<<<<< HEAD
 =======
             body { font-family: Arial, sans-serif; margin: 40px; color: #000; line-height: 1.4; }
             .header-container { text-align: center; margin-bottom: 25px; position: relative; }
@@ -1426,6 +1452,8 @@ function printFeesSummary() {
             .summary-total { border-top: 1px dashed #000; padding-top: 6px; font-weight: bold; margin-top: 6px; font-size: 14px; color: #b91c1c; }
             
 >>>>>>> parent of a4fb2c5 (updates by botilo)
+=======
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
             .footer { margin-top: 50px; display: flex; justify-content: flex-end; font-size: 13px; }
             .sig { border-bottom: 1px solid #000; width: 180px; text-align: center; font-weight: bold; padding-bottom: 2px; display: inline-block; }
         </style>
@@ -1459,6 +1487,7 @@ function printFeesSummary() {
             <tbody>${tableHTML.replace(/<td class="p-3 text-center">[\s\S]*?<\/td>/g, '')}</tbody>
         </table>
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
         
         <div class="summary-card">
@@ -1470,6 +1499,8 @@ function printFeesSummary() {
         </div>
 
 >>>>>>> parent of a4fb2c5 (updates by botilo)
+=======
+>>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
         <div class="footer">
             <div><p>Prepared by:</p><div class="sig">ACC REGISTRAR</div></div>
         </div>
