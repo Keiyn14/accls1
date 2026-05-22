@@ -94,23 +94,12 @@
         </div>
     </div>
 
-<?php 
+    <?php 
     $statusMsg = "";
     $msgClass = "";
     $formActionUrl = "?" . htmlspecialchars($_SERVER['QUERY_STRING'] ?? '', ENT_QUOTES, 'UTF-8');
 
-    // Helper function to verify admin password from the database
-    function verifyAdminPassword($dbcon, $input_password) {
-        $stmt = $dbcon->prepare("SELECT pw FROM users WHERE rid = 1 LIMIT 1");
-        $stmt->execute();
-        $result = $stmt->get_result();
-        if($row = $result->fetch_assoc()) {
-            return ($input_password === $row['pw']); // Use password_verify() here if your passwords are hashed
-        }
-        return false;
-    }
-
-    // 🔓 Handle Simplified Add Form Submission (No password needed to add)
+    // 🔓 Handle Simplified Add Form Submission
     if(isset($_POST['btnAdd'])){
         $role = trim($_POST['txtrole'] ?? '');
 
@@ -130,18 +119,13 @@
         }
     }
 
-    // 🔒 Handle Simplified Update Form Submission (Protected)
+    // 🔓 Handle Simplified Update Form Submission
     if(isset($_POST['btnUpdate'])){
         $urid = intval($_POST['urid'] ?? 0);
         $urname = trim($_POST['urname'] ?? '');
-        $admin_pass = $_POST['admin_pass'] ?? ''; // Catch the submitted password
 
         if($urname == ""){
             $statusMsg = "User Role value cannot be empty.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
-        } elseif (!verifyAdminPassword($dbcon, $admin_pass)) {
-            // Check if password is wrong
-            $statusMsg = "Security Alert: Incorrect Admin Password. Update denied.";
             $msgClass = "border-red-500 bg-red-50 text-red-700";
         } else {
             $urnameEsc = $dbcon->real_escape_string($urname);
@@ -156,24 +140,11 @@
         }
     }
 
-    // 🔒 Handle Simplified Delete Form Submission (Protected & Count Checked)
+    // 🔓 Handle Simplified Delete Form Submission
     if(isset($_POST['btnDelete'])){
         $drid = intval($_POST['drid'] ?? 0);
-        $admin_pass = $_POST['admin_pass'] ?? ''; // Catch the submitted password
 
-        // Check how many roles exist in the database
-        $countRes = $dbcon->query("SELECT count(*) as total FROM role");
-        $countData = $countRes->fetch_assoc();
-        $totalRoles = intval($countData['total']);
-
-        if($totalRoles <= 1) {
-            $statusMsg = "Security Alert: Cannot delete the last remaining role in the system.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
-        } elseif (!verifyAdminPassword($dbcon, $admin_pass)) {
-            // Check if password is wrong
-            $statusMsg = "Security Alert: Incorrect Admin Password. Deletion denied.";
-            $msgClass = "border-red-500 bg-red-50 text-red-700";
-        } elseif($drid > 0) {
+        if($drid > 0) {
             $strDelete = "DELETE FROM role WHERE rid = " . $drid;
             if($dbcon->query($strDelete)){
                 echo "<script>window.location.replace(window.location.href);</script>";
@@ -195,75 +166,64 @@
         </div>
         <?php
     }
-?>
-    <div class="flex flex-wrap gap-4">
-    <div class="w-full">
-        <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-            <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
-                <h3 class="text-white text-lg font-semibold">User Roles Management</h3>
-            </div>
-            <div class="p-6">
-                <div class="overflow-x-auto">
-                    <table class="w-full border-collapse" id="dataTables-example">
-                        <thead>
-                            <tr class="bg-gray-100 border-b-2 border-gray-300">
-                                <th class="px-4 py-3 text-left font-semibold text-gray-700 w-1/12">#</th>
-                                <th class="px-4 py-3 text-left font-semibold text-gray-700 w-8/12">Role Name</th>
-                                <th class="px-4 py-3 text-center font-semibold text-gray-700 w-3/12">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody class="divide-y divide-gray-200">
-                        <?php 
-                        $counter=1;
-                        $strQry="SELECT rid, rname FROM role ORDER BY rid ASC";
-                        $qryRes=$dbcon->query($strQry);
-                        
-                        // 1. Get the total number of roles
-                        $total_roles = $qryRes->num_rows;
+    ?>
 
-                        while($qryData=$qryRes->fetch_assoc()){
-                            $rid=$qryData['rid'];
-                            $rname=$qryData['rname'];
-                            
-                            // 2. Check if this is the only role left
-                            $isLastItem = ($total_roles <= 1);
-                            
-                            // 3. Set the CSS classes for the delete button dynamically
-                            $deleteClass = $isLastItem ? "bg-gray-400 cursor-not-allowed opacity-60" : "bg-red-600 hover:bg-red-700 btn-delete-trigger shadow-md transition duration-200";
+    <div class="flex flex-wrap gap-4">
+        <div class="w-full">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
+                <div class="bg-gradient-to-r from-green-600 to-green-700 px-6 py-4">
+                    <h3 class="text-white text-lg font-semibold">User Roles Management</h3>
+                </div>
+                <div class="p-6">
+                    <div class="overflow-x-auto">
+                        <table class="w-full border-collapse" id="dataTables-example">
+                            <thead>
+                                <tr class="bg-gray-100 border-b-2 border-gray-300">
+                                    <th class="px-4 py-3 text-left font-semibold text-gray-700 w-1/12">#</th>
+                                    <th class="px-4 py-3 text-left font-semibold text-gray-700 w-8/12">Role Name</th>
+                                    <th class="px-4 py-3 text-center font-semibold text-gray-700 w-3/12">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                            <?php 
+                            $counter=1;
+                            $strQry="SELECT rid, rname FROM role ORDER BY rid ASC";
+                            $qryRes=$dbcon->query($strQry);
+                            while($qryData=$qryRes->fetch_assoc()){
+                                $rid=$qryData['rid'];
+                                $rname=$qryData['rname'];
+                                ?>
+                                <tr class="hover:bg-gray-50 transition duration-150">
+                                    <td class="px-4 py-3 text-gray-700"><?php echo $counter;?></td>
+                                    <td class="px-4 py-3 text-gray-700 font-medium"><?php echo htmlspecialchars($rname, ENT_QUOTES, 'UTF-8');?></td>
+                                    <td class="px-4 py-3">
+                                        <div class="flex gap-2 w-full">
+                                            <button type="button" 
+                                                    class="btn-edit-trigger flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2"
+                                                    data-rid="<?php echo $rid; ?>"
+                                                    data-rname="<?php echo htmlspecialchars($rname, ENT_QUOTES, 'UTF-8'); ?>">
+                                                <i class="icon-edit"></i> Edit
+                                            </button>
+                                            <button type="button" 
+                                                    class="btn-delete-trigger px-3 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition duration-200"
+                                                    data-rid="<?php echo $rid; ?>"
+                                                    data-rname="<?php echo htmlspecialchars($rname, ENT_QUOTES, 'UTF-8'); ?>">
+                                                <i class="icon-trash"></i>
+                                            </button>
+                                        </div>
+                                    </td>                                    
+                                </tr>
+                                <?php
+                                $counter++;
+                            }
                             ?>
-                            <tr class="hover:bg-gray-50 transition duration-150">
-                                <td class="px-4 py-3 text-gray-700"><?php echo $counter;?></td>
-                                <td class="px-4 py-3 text-gray-700 font-medium"><?php echo htmlspecialchars($rname, ENT_QUOTES, 'UTF-8');?></td>
-                                <td class="px-4 py-3">
-                                    <div class="flex gap-2 w-full">
-                                        <button type="button" 
-                                                class="btn-edit-trigger flex-1 px-3 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 inline-flex items-center justify-center gap-2"
-                                                data-rid="<?php echo $rid; ?>"
-                                                data-rname="<?php echo htmlspecialchars($rname, ENT_QUOTES, 'UTF-8'); ?>">
-                                            <i class="icon-edit"></i> Edit
-                                        </button>
-                                        
-                                        <button type="button" 
-                                                class="px-3 py-2 text-white font-semibold rounded-lg <?php echo $deleteClass; ?>"
-                                                <?php echo $isLastItem ? 'disabled title="Cannot delete the last remaining role"' : ''; ?>
-                                                data-rid="<?php echo $rid; ?>"
-                                                data-rname="<?php echo htmlspecialchars($rname, ENT_QUOTES, 'UTF-8'); ?>">
-                                            <i class="icon-trash"></i>
-                                        </button>
-                                    </div>
-                                </td>                                   
-                            </tr>
-                            <?php
-                            $counter++;
-                        }
-                        ?>
-                        </tbody>
-                    </table>                            
+                            </tbody>
+                        </table>                            
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-</div>
+    </div>  
     
     <div class="modal-overlay" id="formModal" aria-hidden="true">
         <div class="modal-dialog modal-dialog-centered">
@@ -302,14 +262,6 @@
                             <input type="hidden" name="urid" id="edit_rid" value="">
                             <input type="text" name="urname" id="edit_rname" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500" required>
                         </div>
-                        
-                        <div class="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="icon-lock text-yellow-600 mr-1"></i> Admin Password Required
-                            </label>
-                            <input type="password" name="admin_pass" required placeholder="Enter admin password to confirm" 
-                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500">
-                        </div>
                     </div>
                     <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
                         <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" onclick="closeModal('editRoleModal')">Close</button>
@@ -330,15 +282,7 @@
                     </div>
                     <div class="modal-body p-6 text-left text-sm">
                         <input type="hidden" name="drid" id="delete_rid" value="">
-                        <p class="text-gray-700 text-base mb-4">Are you sure you want to delete the role <span id="delete_target_name" class="font-bold text-red-600"></span>? This action cannot be undone.</p>
-                        
-                        <div class="mt-2 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                            <label class="block text-sm font-medium text-gray-700 mb-1">
-                                <i class="icon-lock text-yellow-600 mr-1"></i> Admin Password Required
-                            </label>
-                            <input type="password" name="admin_pass" required placeholder="Enter admin password to confirm" 
-                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-red-500 focus:ring-1 focus:ring-red-500">
-                        </div>
+                        <p class="text-gray-700 text-base">Are you sure you want to delete the role <span id="delete_target_name" class="font-bold text-red-600"></span>? This action cannot be undone.</p>
                     </div>
                     <div class="modal-footer bg-gray-50 px-6 py-4 flex justify-end gap-3">
                         <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded-lg transition duration-200" onclick="closeModal('deleteRoleModal')">Cancel</button>

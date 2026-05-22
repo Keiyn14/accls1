@@ -94,9 +94,9 @@ function navActive($page, $currentLink) {
 	</li>
 
 	<li class="nav-item border-t border-green-600 mt-6 pt-4">
-		<button data-toggle="modal" data-target="#logoutModal" class="w-full flex items-center px-4 py-3 rounded-lg text-white bg-red-600 hover:bg-red-700 transition-colors duration-200 font-medium">
+		<a href="<?php echo accls()."/";?>" class="flex items-center px-4 py-3 rounded-lg text-white bg-red-600 hover:bg-red-700 transition-colors duration-200 font-medium">
 			<i class="icon-signout mr-3"></i> Logout
-		</button>
+		</a>
 	</li>
 </ul>
 
@@ -116,6 +116,15 @@ function toggleMenu(menuId, button) {
 </script>
 
 <style>
+<<<<<<< HEAD
 .nav-item a, .nav-item button { transition: all 0.2s ease; }
 .nav-item a:hover, .nav-item button:hover { transform: translateX(5px); }
+=======
+.nav-item a, .nav-item button {
+	transition: all 0.2s ease;
+}
+.nav-item a:hover, .nav-item button:hover {
+	transform: translateX(5px);
+}
+>>>>>>> parent of fee2e90 (security uodate 2)
 </style>
