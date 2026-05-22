@@ -935,9 +935,12 @@ if(isset($_POST['action_type'])){
                         <div class="flex justify-between"><span>Miscellanous fees:</span><span id="fee_misc" class="font-semibold text-gray-900">9,000.00 PHP</span></div>
                         <div class="flex justify-between"><span>Laboratory fees (<span id="major_count">0</span> Major Subjects):</span><span id="fee_lab" class="font-semibold text-gray-900">0.00 PHP</span></div>
                         <div class="flex justify-between border-t pt-2 text-base font-bold text-green-700"><span>Total Term Bill:</span><span id="fee_total">9,000.00 PHP</span></div>
+<<<<<<< HEAD
 >>>>>>> parent of a4fb2c5 (updates by botilo)
 =======
 >>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
+=======
+>>>>>>> parent of a4fb2c5 (updates by botilo)
                     </div>
                 </div>
  
