@@ -6,21 +6,10 @@ $currentLink = strtolower(decCode($currentLinkRaw));
 if ($currentLink === '') {
     $currentLink = strtolower($currentLinkRaw);
 }
-<<<<<<< HEAD
-<<<<<<< HEAD
+
 // 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting is active (subjectscatalog removed)
 $openLedgerSettings = preg_match('/academicperiod|departments|offerings|gradelevel|status|fees/', $currentLink) ? 'block' : 'hidden';
-=======
-// 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting or the subject catalog is active
-$openLedgerSettings = preg_match('/schoolyear|semester|departments|offerings|gradelevel|status|subjectscatalog/', $currentLink) ? 'block' : 'hidden';
-<<<<<<< HEAD
->>>>>>> parent of a4fb2c5 (updates by botilo)
-=======
-// 🔄 PERSISTENCE ENGINE: Keeps dropdown active when any ledger setting is active (subjectscatalog removed)
-$openLedgerSettings = preg_match('/academicperiod|departments|offerings|gradelevel|status|fees/', $currentLink) ? 'block' : 'hidden';
->>>>>>> 42e714de276824eb76d359e4664f33629f90f6c5
-=======
->>>>>>> parent of a4fb2c5 (updates by botilo)
+
 $openUsers = preg_match('/userroles|ledgerusers/', $currentLink) ? 'block' : 'hidden';
 $ledgerSettingsIcon = $openLedgerSettings === 'block' ? 'rotate-90' : '';
 $usersIcon = $openUsers === 'block' ? 'rotate-90' : '';
@@ -78,15 +67,9 @@ function navActive($page, $currentLink) {
 			<?php $pagename=encCode("offerings");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('offerings',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Program Offerings </a></li>
 
-<<<<<<< HEAD
-<<<<<<< HEAD
 			<?php $pagename=encCode("fees");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('fees',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Fees Catalog </a></li>
 
-=======
->>>>>>> parent of a4fb2c5 (updates by botilo)
-=======
->>>>>>> parent of a4fb2c5 (updates by botilo)
 			<?php $pagename=encCode("gradelevel");?>
 			<li class=""><a href="<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".$pagename;?>" class="block px-6 py-2 text-green-100 hover:bg-green-700 transition-colors duration-200 text-sm <?php echo navActive('gradelevel',$currentLink);?>"><i class="icon-angle-right mr-2"></i> Grade Level </a></li>
 			
