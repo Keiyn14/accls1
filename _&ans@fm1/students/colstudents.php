@@ -1,21 +1,174 @@
 <?php 
 // =========================================================================
-// 🚀 AJAX ENGINE HANDLING BLOCKS 
+// 💸 FEES MODAL AJAX HANDLERS
 // =========================================================================
+
 if(isset($_POST['action_type'])){
     while (ob_get_level()) { ob_end_clean(); } // Clear buffers to prevent JSON corruption
+    
+    if($_POST['action_type'] == "fetch_student_fees"){
+        $csid = intval($_POST['csid']);
+        $syid = intval($_POST['syid']);
+        $semid = intval($_POST['semid']);
 
-    if($_POST['action_type'] == "fetch_catalog_subjects"){
-        $cid = intval($_POST['cid']);
+        // Check if this term is already assessed
+        $check = $dbcon->query("SELECT * FROM student_balances WHERE csid = $csid AND syid = $syid AND sid = $semid");
+        if($check && $check->num_rows > 0) {
+            echo json_encode(["status" => "error", "message" => "This Term and Semester has already been assessed for this student."]);
+            exit();
+        }
+
+        // 1. Calculate Tuition from enrolled subjects for this specific term as a base/fallback
+        $tuition_fee = 0.00;
+        $tQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as t_fee FROM student_subjects WHERE csid = $csid AND syid = $syid AND sid = $semid");
+        if($tQry && $tRow = $tQry->fetch_assoc()){
+            $tuition_fee = floatval($tRow['t_fee']);
+        }
+
+        // 2. Fetch other standard fees from the catalog based on the student's program (cid) and year level
+        $misc_fee = 0.00; $lab_fee = 0.00; $other_fee = 0.00;
+        
+        $studentQry = $dbcon->query("SELECT cid, gid FROM students WHERE csid = $csid");
+        if($studentQry && $studentQry->num_rows > 0) {
+            $studentRow = $studentQry->fetch_assoc();
+            $cid = intval($studentRow['cid']);
+            $gid = intval($studentRow['gid']);
+            
+            // Map the student's gid to the fees table year_level (1, 2, 3, 4)
+            $year_level = 1; 
+            $glQry = $dbcon->query("SELECT glevel FROM gradelevel WHERE gid = $gid");
+            if($glQry && $glRow = $glQry->fetch_assoc()) {
+                $glevel_str = $glRow['glevel'];
+                if (strpos($glevel_str, '1st') !== false) $year_level = 1;
+                elseif (strpos($glevel_str, '2nd') !== false) $year_level = 2;
+                elseif (strpos($glevel_str, '3rd') !== false) $year_level = 3;
+                elseif (strpos($glevel_str, '4th') !== false) $year_level = 4;
+            }
+
+            // Query using the correct structural columns from your actual database
+            $feeQry = $dbcon->query("SELECT tuition_fee, misc_fee, lab_fee, other_fee FROM fees WHERE cid = $cid AND year_level = $year_level AND syid = $syid AND sid = $semid");
+            if($feeQry && $feeQry->num_rows > 0) {
+                $f = $feeQry->fetch_assoc();
+                
+                // If a standard catalog tuition fee exists (> 0), use it; otherwise, keep the subjects sum
+                $catalog_tuition = floatval($f['tuition_fee']);
+                if ($catalog_tuition > 0) {
+                    $tuition_fee = $catalog_tuition;
+                }
+                
+                $misc_fee  = floatval($f['misc_fee']);
+                $lab_fee   = floatval($f['lab_fee']);
+                $other_fee = floatval($f['other_fee']);
+            }
+        }
+
+        $total_fee = $tuition_fee + $misc_fee + $lab_fee + $other_fee;
+
+        echo json_encode([
+            "status" => "found",
+            "tuition_fee" => $tuition_fee,
+            "misc_fee" => $misc_fee,
+            "lab_fee" => $lab_fee,
+            "other_fee" => $other_fee,
+            "total_fee" => $total_fee
+        ]);
+        exit();
+    }
+
+    if($_POST['action_type'] == "save_student_fees"){
+
+    $csid         = intval($_POST['csid']);
+    $syid         = intval($_POST['syid']);
+    $semid        = intval($_POST['semid']);
+
+    $tuition_fee  = floatval($_POST['tuition_fee']);
+    $misc_fee     = floatval($_POST['misc_fee']);
+    $lab_fee      = floatval($_POST['lab_fee']);
+    $other_fee    = floatval($_POST['other_fee']);
+    $total_fee    = floatval($_POST['total_fee']);
+
+    // prevent duplicate assessment
+    $chk = $dbcon->query("
+        SELECT balance_id
+        FROM student_balances
+        WHERE csid = $csid
+        AND syid = $syid
+        AND sid = $semid
+    ");
+
+    if($chk && $chk->num_rows > 0){
+        echo json_encode([
+            "status"=>"error",
+            "message"=>"Assessment already exists."
+        ]);
+        exit();
+    }
+
+    $sql = "
+    INSERT INTO student_balances
+    (
+        csid,
+        syid,
+        sid,
+        tuition_fee,
+        misc_fee,
+        lab_fee,
+        other_fee,
+        total_fee,
+        amount_paid
+    )
+    VALUES
+    (
+        $csid,
+        $syid,
+        $semid,
+        $tuition_fee,
+        $misc_fee,
+        $lab_fee,
+        $other_fee,
+        $total_fee,
+        0
+    )";
+
+    if($dbcon->query($sql)){
+        echo json_encode([
+            "status"=>"success"
+        ]);
+    }else{
+        echo json_encode([
+            "status"=>"error",
+            "message"=>$dbcon->error
+        ]);
+    }
+
+    exit();
+}
+
+    if($_POST['action_type'] == "fetch_balance_records"){
+        $csid = intval($_POST['csid']);
         $output = [];
-        $res = $dbcon->query("SELECT subject_code, subject_title, units, price FROM subjects WHERE cid = $cid ORDER BY subject_code ASC");
+        $res = $dbcon->query("
+            SELECT b.*, sy.syname, sem.semester 
+            FROM student_balances b
+            LEFT JOIN sy ON b.syid = sy.syid
+            LEFT JOIN sem ON b.sid = sem.sid
+            WHERE b.csid = $csid
+            ORDER BY b.syid DESC, b.sid DESC
+        ");
         if($res){
             while($r = $res->fetch_assoc()){
                 $output[] = [
-                    'subject_code'  => $r['subject_code'],
-                    'subject_title' => $r['subject_title'],
-                    'units'         => intval($r['units']),
-                    'price'         => floatval($r['price'])
+                    'syid' => intval($r['syid']),
+                    'sid' => intval($r['sid']),
+                    'syname' => $r['syname'],
+                    'semester' => $r['semester'],
+                    'tuition_fee' => floatval($r['tuition_fee'] ?? 0),
+                    'misc_fee' => floatval($r['misc_fee'] ?? 0),
+                    'lab_fee' => floatval($r['lab_fee'] ?? 0),
+                    'other_fee' => floatval($r['other_fee'] ?? 0),
+                    'total_fee' => floatval($r['total_fee']),
+                    'amount_paid' => floatval($r['amount_paid']),
+                    'balance' => floatval($r['total_fee'] - $r['amount_paid'])
                 ];
             }
         }
@@ -23,184 +176,13 @@ if(isset($_POST['action_type'])){
         exit();
     }
 
-    if($_POST['action_type'] == "fetch_subjects"){
-        $csid = intval($_POST['subject_csid']);
-        $output = [];
+    if($_POST['action_type'] == "remove_fee_record"){
+        $csid = intval($_POST['csid']);
+        $syid = intval($_POST['syid']);
+        $semid = intval($_POST['semid']);
         
-        $syQry = $dbcon->query("SELECT syid FROM sy WHERE status='Active' LIMIT 1");
-        $semQry = $dbcon->query("SELECT sid FROM sem WHERE status='Active' LIMIT 1");
-        $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
-        $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
-
-        // 1. DYNAMIC FEE LOOKUP FOR UI
-        $misc_fee = 0; $other_fee = 0;
-        $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
-        if($studentQry && $studentQry->num_rows > 0) {
-            $cid = intval(($studentQry->fetch_assoc())['cid']);
-            $feeQry = $dbcon->query("SELECT fee_type, amount FROM fees WHERE cid = $cid");
-            if($feeQry) {
-                while($f = $feeQry->fetch_assoc()){
-                    if($f['fee_type'] == 'Miscellaneous') $misc_fee = floatval($f['amount']);
-                    if($f['fee_type'] == 'Other Fees') $other_fee = floatval($f['amount']);
-                }
-            }
-        }
-
-        $res = $dbcon->query("SELECT * FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid ORDER BY ssid DESC");
-        if($res){
-            while($r = $res->fetch_assoc()){
-                $output[] = [
-                    'ssid'          => $r['ssid'],
-                    'subject_code'  => $r['subject_code'],
-                    'subject_title' => $r['subject_description'], 
-                    'units'         => $r['units'],
-                    'price'         => $r['price']
-                ];
-            }
-        }
-        
-        // Return both the subject array AND the fee variables to the Javascript UI
-        echo json_encode([
-            "subjects" => $output,
-            "misc_fee" => $misc_fee,
-            "other_fee" => $other_fee
-        ]);
-        exit();
-    }
-
-    if($_POST['action_type'] == "add_subject"){
-        $csid = intval($_POST['subject_csid']);
-        $subCode = $dbcon->real_escape_string(trim($_POST['subject_code']));
-        
-        $syQry = $dbcon->query("SELECT syid FROM sy WHERE status='Active' LIMIT 1");
-        $semQry = $dbcon->query("SELECT sid FROM sem WHERE status='Active' LIMIT 1");
-        $current_syid = intval(($syQry->fetch_assoc())['syid'] ?? 0);
-        $current_sid = intval(($semQry->fetch_assoc())['sid'] ?? 0);
-
-        $balanceCheck = $dbcon->query("
-            SELECT b.*, sy.syname, sem.semester 
-            FROM student_balances b
-            JOIN sy ON b.syid = sy.syid
-            JOIN sem ON b.sid = sem.sid
-            WHERE b.csid = $csid 
-              AND (b.total_fee - b.amount_paid) > 0
-              AND NOT (b.syid = $current_syid AND b.sid = $current_sid)
-        ");
-
-        if($balanceCheck && $balanceCheck->num_rows > 0) {
-            $arrears = [];
-            while($bRow = $balanceCheck->fetch_assoc()){
-                $arrears[] = [
-                    'term' => $bRow['syname'] . " (" . $bRow['semester'] . ")",
-                    'balance' => floatval($bRow['total_fee'] - $bRow['amount_paid'])
-                ];
-            }
-            echo json_encode(["status" => "blocked", "message" => "Student has an outstanding balance from a previous term.", "records" => $arrears]);
-            exit();
-        }
-
-        $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
-        $studentData = $studentQry->fetch_assoc();
-        $cid = intval($studentData['cid'] ?? 0);
-        
-        $catalogQry = $dbcon->query("SELECT subject_title, units, price FROM subjects WHERE subject_code = '$subCode' AND cid = $cid LIMIT 1");
-        
-        if($catalogQry && $catalogQry->num_rows > 0) {
-            $catalog = $catalogQry->fetch_assoc();
-            $subDesc = $dbcon->real_escape_string($catalog['subject_title']);
-            $subUnits = intval($catalog['units']);
-            $subPrice = floatval($catalog['price']);
-            
-            $duplicateCheck = $dbcon->query("SELECT ssid FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid AND subject_code = '$subCode'");
-            if($duplicateCheck && $duplicateCheck->num_rows > 0) {
-                echo json_encode(["status" => "error", "message" => "This subject is already registered."]);
-                exit();
-            }
-
-            $query = "INSERT INTO student_subjects (csid, syid, sid, subject_code, subject_description, units, price) 
-                      VALUES ($csid, $current_syid, $current_sid, '$subCode', '$subDesc', $subUnits, $subPrice)";
-                      
-            if($dbcon->query($query)){
-                $tuition = 0.00;
-                $calcQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as total_tuition FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
-                if ($calcQry && $row = $calcQry->fetch_assoc()) {
-                    $tuition = floatval($row['total_tuition']);
-                }
-
-                // 2. DYNAMIC FEE LOOKUP FOR DATABASE UPDATE
-                $misc_fee = 0; $other_fee = 0;
-                $feeQry = $dbcon->query("SELECT fee_type, amount FROM fees WHERE cid = $cid");
-                if($feeQry) {
-                    while($f = $feeQry->fetch_assoc()){
-                        if($f['fee_type'] == 'Miscellaneous') $misc_fee = floatval($f['amount']);
-                        if($f['fee_type'] == 'Other Fees') $other_fee = floatval($f['amount']);
-                    }
-                }
-                
-                $newTotalAssessment = $tuition + $misc_fee + $other_fee;
-
-                $dbcon->query("
-                    INSERT INTO student_balances (csid, syid, sid, total_fee, amount_paid)
-                    VALUES ($csid, $current_syid, $current_sid, $newTotalAssessment, 0.00)
-                    ON DUPLICATE KEY UPDATE total_fee = $newTotalAssessment
-                ");
-
-                echo json_encode(["status" => "success"]);
-            } else {
-                echo json_encode(["status" => "error", "message" => $dbcon->error]);
-            }
-        } else {
-            echo json_encode(["status" => "error", "message" => "Target subject variant row not registered."]);
-        }
-        exit(); 
-    }
-
-    if($_POST['action_type'] == "remove_subject"){
-        $ssid = intval($_POST['ssid']);
-        
-        $subInfo = $dbcon->query("SELECT csid, syid, sid FROM student_subjects WHERE ssid = $ssid");
-        if($subInfo && $subInfo->num_rows > 0) {
-            $row = $subInfo->fetch_assoc();
-            $csid = intval($row['csid']);
-            $current_syid = intval($row['syid']);
-            $current_sid = intval($row['sid']);
-
-            $dbcon->query("DELETE FROM student_subjects WHERE ssid = $ssid");
-
-            $checkEnrolled = $dbcon->query("SELECT COUNT(*) as sub_count FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
-            $enrolledCount = 0;
-            if ($checkEnrolled && $ecRow = $checkEnrolled->fetch_assoc()) {
-                $enrolledCount = intval($ecRow['sub_count']);
-            }
-
-            if ($enrolledCount > 0) {
-                $tuition = 0.00;
-                
-                $calcQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as total_tuition FROM student_subjects WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
-                if ($calcQry && $tRow = $calcQry->fetch_assoc()) {
-                    $tuition = floatval($tRow['total_tuition']);
-                }
-
-                // 3. DYNAMIC FEE LOOKUP FOR DATABASE UPDATE
-                $studentQry = $dbcon->query("SELECT cid FROM students WHERE csid = $csid");
-                $cid = ($studentQry && $studentQry->num_rows > 0) ? intval(($studentQry->fetch_assoc())['cid']) : 0;
-
-                $misc_fee = 0; $other_fee = 0;
-                $feeQry = $dbcon->query("SELECT fee_type, amount FROM fees WHERE cid = $cid");
-                if($feeQry) {
-                    while($f = $feeQry->fetch_assoc()){
-                        if($f['fee_type'] == 'Miscellaneous') $misc_fee = floatval($f['amount']);
-                        if($f['fee_type'] == 'Other Fees') $other_fee = floatval($f['amount']);
-                    }
-                }
-                
-                $newTotalAssessment = $tuition + $misc_fee + $other_fee;
-
-                $dbcon->query("UPDATE student_balances SET total_fee = $newTotalAssessment WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
-            } else {
-                $dbcon->query("UPDATE student_balances SET total_fee = 0.00 WHERE csid = $csid AND syid = $current_syid AND sid = $current_sid");
-            }
-        }
+        // Bulletproof delete based on exact student and term match
+        $dbcon->query("DELETE FROM student_balances WHERE csid = $csid AND syid = $syid AND sid = $semid");
         echo json_encode(["status" => "success"]);
         exit();
     }
@@ -453,7 +435,7 @@ if(isset($_POST['action_type'])){
                 
                 while (($data = fgetcsv($handle, 1000, ",")) !== FALSE) {
                     if (empty(array_filter($data))) continue;
-                    $data = array_pad($data, 15, '');
+                    $data = array_pad($data, 14, '');
                     
                     $studentid = trim($data[0]);
                     $fname     = trim($data[1]);
@@ -462,14 +444,14 @@ if(isset($_POST['action_type'])){
                     $gender    = trim($data[4]);
                     $cid       = intval(trim($data[5])); 
                     $gid       = intval(trim($data[6])); 
-                    $did       = intval(trim($data[7])); 
-                    $syid      = intval(trim($data[8])); 
-                    $sid       = intval(trim($data[9])); 
-                    $guardian  = trim($data[10]);
-                    $mobile    = trim($data[11]);
-                    $address   = trim($data[12]);
-                    $email     = trim($data[13]);
-                    $smobile   = trim($data[14]);
+                    $did       = 0; // Department removed from CSV — defaults to 0
+                    $syid      = intval(trim($data[7])); 
+                    $sid       = intval(trim($data[8])); 
+                    $guardian  = trim($data[9]);
+                    $mobile    = trim($data[10]);
+                    $address   = trim($data[11]);
+                    $email     = trim($data[12]);
+                    $smobile   = trim($data[13]);
 
                     if(empty($studentid) || empty($lname) || empty($fname)) continue;
 
@@ -596,7 +578,7 @@ if(isset($_POST['action_type'])){
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Program</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Level</th>
                             <th class="px-4 py-3 text-left font-semibold text-gray-700">Status</th>
-                            <th class="px-4 py-3 text-left font-semibold text-gray-700">School Year</th>
+                            <th class="px-4 py-3 text-left font-semibold text-gray-700">Enrolled Since</th>
                             <th class="px-4 py-3 text-center font-semibold text-gray-700 print-hide" style="min-width: 200px;">Action</th>
                         </tr>
                     </thead>
@@ -670,26 +652,164 @@ if(isset($_POST['action_type'])){
 </div>
 
 <div class="modal-overlay print-hide" id="importModal" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-sm">
+    <div class="modal-dialog" style="max-width: 680px;">
         <div class="modal-content">
             <form role="form" method="post" action="<?php echo $formActionUrl; ?>" enctype="multipart/form-data">
+
                 <div class="bg-gradient-to-r from-blue-700 to-blue-600 px-6 py-4 flex justify-between items-center">
-                    <h4 class="text-lg font-bold text-white">Import Students (CSV)</h4>
-                    <button type="button" class="text-white hover:text-gray-200 text-2xl" onclick="closeModal('importModal')">&times;</button>
-                </div>
-                <div class="modal-body p-6">
-                    <div class="mb-4 text-sm text-gray-600 bg-blue-50 p-3 rounded border border-blue-200">
-                        <strong>Important:</strong> CSV layout structure required matches precisely columns defined.
+                    <div>
+                        <h4 class="text-lg font-bold text-white">Bulk Import Students (CSV)</h4>
+                        <p class="text-blue-100 text-xs mt-0.5">Upload a CSV file to add or update multiple students at once</p>
                     </div>
+                    <button type="button" class="text-white hover:text-gray-200 text-2xl leading-none" onclick="closeModal('importModal')">&times;</button>
+                </div>
+
+                <div class="modal-body p-6 space-y-4">
+
+                    <!-- ── CSV FORMAT GUIDE ── -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-900">
+                        <p class="font-bold mb-1"><i class="icon-info-sign"></i> CSV Format Guide</p>
+                        <p class="text-xs mb-2">Each row must follow this exact column order (header row optional):</p>
+                        <code class="block bg-white border border-blue-200 rounded px-3 py-2 text-xs font-mono text-gray-800 leading-relaxed">
+                            student_id, first_name, middle_name, last_name, gender,<br>
+                            &nbsp;program_id, year_level_id, school_year_id, status_id,<br>
+                            &nbsp;guardian_name, guardian_mobile, address, student_email, student_mobile
+                        </code>
+
+                        <!-- Column reference table -->
+                        <div class="mt-3 border border-blue-200 rounded-lg overflow-hidden">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="bg-blue-100 text-blue-800 uppercase font-bold">
+                                        <th class="px-3 py-1.5 text-left">#</th>
+                                        <th class="px-3 py-1.5 text-left">Column</th>
+                                        <th class="px-3 py-1.5 text-left">Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-blue-100 bg-white text-blue-900">
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">1</td><td class="px-3 py-1.5 font-semibold">student_id</td><td class="px-3 py-1.5 text-gray-600">e.g. <span class="font-mono">2024-0207</span> — used as unique key (updates if exists)</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">2</td><td class="px-3 py-1.5 font-semibold">first_name</td><td class="px-3 py-1.5 text-gray-600">Required</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">3</td><td class="px-3 py-1.5 font-semibold">middle_name</td><td class="px-3 py-1.5 text-gray-600">Can be blank</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">4</td><td class="px-3 py-1.5 font-semibold">last_name</td><td class="px-3 py-1.5 text-gray-600">Required</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">5</td><td class="px-3 py-1.5 font-semibold">gender</td><td class="px-3 py-1.5 text-gray-600"><span class="font-mono">Male</span> or <span class="font-mono">Female</span></td></tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">6</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">program_id</td>
+                                        <td class="px-3 py-1.5 text-gray-600">
+                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">offerings</span> (cid):</span>
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                <?php
+                                                $r = $dbcon->query("SELECT cid, program FROM offerings ORDER BY cid ASC");
+                                                while($row = $r->fetch_assoc()):
+                                                ?>
+                                                <span class="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs font-semibold px-2 py-0.5 rounded-full border border-indigo-200">
+                                                    <span class="font-mono bg-indigo-200 text-indigo-900 px-1 rounded"><?php echo intval($row['cid']); ?></span>
+                                                    <?php echo htmlspecialchars($row['program'], ENT_QUOTES, 'UTF-8'); ?>
+                                                </span>
+                                                <?php endwhile; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">7</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">year_level_id</td>
+                                        <td class="px-3 py-1.5 text-gray-600">
+                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">gradelevel</span> (gid):</span>
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                <?php
+                                                $r = $dbcon->query("SELECT gid, glevel FROM gradelevel ORDER BY gid ASC");
+                                                while($row = $r->fetch_assoc()):
+                                                ?>
+                                                <span class="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full border border-green-200">
+                                                    <span class="font-mono bg-green-200 text-green-900 px-1 rounded"><?php echo intval($row['gid']); ?></span>
+                                                    <?php echo htmlspecialchars($row['glevel'], ENT_QUOTES, 'UTF-8'); ?>
+                                                </span>
+                                                <?php endwhile; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">8</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">school_year_id</td>
+                                        <td class="px-3 py-1.5 text-gray-600">
+                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">sy</span> (syid):</span>
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                <?php
+                                                $r = $dbcon->query("SELECT syid, syname, status FROM sy ORDER BY syid DESC");
+                                                while($row = $r->fetch_assoc()):
+                                                    $isActive = ($row['status'] === 'Active');
+                                                ?>
+                                                <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border
+                                                    <?php echo $isActive ? 'bg-blue-200 text-blue-900 border-blue-300' : 'bg-gray-100 text-gray-700 border-gray-200'; ?>">
+                                                    <span class="font-mono <?php echo $isActive ? 'bg-blue-300 text-blue-900' : 'bg-gray-200 text-gray-700'; ?> px-1 rounded">
+                                                        <?php echo intval($row['syid']); ?>
+                                                    </span>
+                                                    <?php echo htmlspecialchars($row['syname'], ENT_QUOTES, 'UTF-8'); ?>
+                                                    <?php if($isActive): ?>
+                                                        <span class="text-blue-600 font-bold">★</span>
+                                                    <?php endif; ?>
+                                                </span>
+                                                <?php endwhile; ?>
+                                            </div>
+                                            <p class="text-xs text-blue-600 mt-1">★ = currently active school year</p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">9</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">status_id</td>
+                                        <td class="px-3 py-1.5 text-gray-600">
+                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">status</span> (sid):</span>
+                                            <div class="mt-1 flex flex-wrap gap-1">
+                                                <?php
+                                                $r = $dbcon->query("SELECT sid, remark FROM status ORDER BY sid ASC");
+                                                while($row = $r->fetch_assoc()):
+                                                ?>
+                                                <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5 rounded-full border border-purple-200">
+                                                    <span class="font-mono bg-purple-200 text-purple-900 px-1 rounded"><?php echo intval($row['sid']); ?></span>
+                                                    <?php echo htmlspecialchars($row['remark'], ENT_QUOTES, 'UTF-8'); ?>
+                                                </span>
+                                                <?php endwhile; ?>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">10</td><td class="px-3 py-1.5 font-semibold">guardian_name</td><td class="px-3 py-1.5 text-gray-600">Required</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">11</td><td class="px-3 py-1.5 font-semibold">guardian_mobile</td><td class="px-3 py-1.5 text-gray-600">Required</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">12</td><td class="px-3 py-1.5 font-semibold">address</td><td class="px-3 py-1.5 text-gray-600">Complete home address</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">13</td><td class="px-3 py-1.5 font-semibold">student_email</td><td class="px-3 py-1.5 text-gray-600">Optional</td></tr>
+                                    <tr><td class="px-3 py-1.5 font-mono text-gray-500">14</td><td class="px-3 py-1.5 font-semibold">student_mobile</td><td class="px-3 py-1.5 text-gray-600">Optional</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <p class="text-xs mt-2 text-blue-700">
+                            • Existing <b>student_id</b> records will be <b>updated</b>; new ones will be <b>inserted</b><br>
+                            • Rows missing <span class="font-mono">student_id</span>, <span class="font-mono">first_name</span>, or <span class="font-mono">last_name</span> are skipped automatically
+                        </p>
+
+                        <a href="#" onclick="downloadStudentCSVTemplate(); return false;"
+                           class="inline-flex items-center gap-1 mt-2 text-xs font-bold text-blue-700 hover:text-blue-900 underline">
+                            <i class="icon-download"></i> Download blank template
+                        </a>
+                    </div>
+
+                    <!-- ── FILE UPLOAD ── -->
                     <div>
                         <label class="block text-gray-700 font-semibold mb-1 text-sm">Upload CSV File *</label>
-                        <input type="file" name="csv_file" accept=".csv" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 bg-white" required>
+                        <input type="file" name="csv_file" accept=".csv"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-sm"
+                               required>
+                        <p class="text-xs text-gray-400 mt-1">Accepted format: <span class="font-mono">.csv</span> only</p>
                     </div>
+
+                </div><!-- /modal-body -->
+
+                <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg border-t">
+                    <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded text-sm" onclick="closeModal('importModal')">Cancel</button>
+                    <button type="submit" name="btnImportCSV" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded text-sm shadow">
+                        <i class="icon-upload"></i> Run Import
+                    </button>
                 </div>
-                <div class="modal-footer bg-gray-50 flex justify-end gap-3 rounded-b-lg">
-                    <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded" onclick="closeModal('importModal')">Cancel</button>
-                    <button type="submit" name="btnImportCSV" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded">Run Import</button>
-                </div>
+
             </form>
         </div>
     </div>
@@ -711,10 +831,9 @@ if(isset($_POST['action_type'])){
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Middle Name</label><input type="text" name="mname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
                         <div class="md:col-span-2"><label class="block text-gray-700 font-semibold mb-1 text-sm">Last Name *</label><input type="text" name="lname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Program *</label><select name="cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $oRes=$dbcon->query("SELECT cid, program FROM offerings"); while($o=$oRes->fetch_assoc()) echo "<option value='".$o['cid']."'>".htmlspecialchars($o['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Year Level *</label><select name="gid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $gRes=$dbcon->query("SELECT gid, glevel FROM gradelevel"); while($g=$gRes->fetch_assoc()) echo "<option value='".$g['gid']."'>".htmlspecialchars($g['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
-                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Department *</label><select name="did" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $dRes=$dbcon->query("SELECT did, department FROM departments"); while($d=$dRes->fetch_assoc()) echo "<option value='".$d['did']."'>".htmlspecialchars($d['department'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
@@ -775,6 +894,7 @@ if(isset($_POST['action_type'])){
                 </div>
                 <div class="modal-body p-6">
                     <input type="hidden" name="csid" id="edit_csid" value="">
+                    <input type="hidden" name="udid" id="edit_did" value=""> 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Student ID</label><input type="text" name="ustudentid" id="edit_studentid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Gender</label><select name="ugender" id="edit_gender" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><option value="Male">Male</option><option value="Female">Female</option></select></div>
@@ -782,22 +902,19 @@ if(isset($_POST['action_type'])){
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Middle Name</label><input type="text" name="umname" id="edit_mname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500"></div>
                         <div class="md:col-span-2"><label class="block text-gray-700 font-semibold mb-1 text-sm">Last Name</label><input type="text" name="ulname" id="edit_lname" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required></div>
                     </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Program</label><select name="ucid" id="edit_cid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $oRes=$dbcon->query("SELECT cid, program FROM offerings"); while($o=$oRes->fetch_assoc()) echo "<option value='".$o['cid']."'>".htmlspecialchars($o['program'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                         <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Year Level</label><select name="ugid" id="edit_gid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $gRes=$dbcon->query("SELECT gid, glevel FROM gradelevel"); while($g=$gRes->fetch_assoc()) echo "<option value='".$g['gid']."'>".htmlspecialchars($g['glevel'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
-                        <div><label class="block text-gray-700 font-semibold mb-1 text-sm">Department</label><select name="udid" id="edit_did" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required><?php $dRes=$dbcon->query("SELECT did, department FROM departments"); while($d=$dRes->fetch_assoc()) echo "<option value='".$d['did']."'>".htmlspecialchars($d['department'] ?? '', ENT_QUOTES, 'UTF-8')."</option>"; ?></select></div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                         <div>
-                            <label class="block text-gray-700 font-semibold mb-1 text-sm">School Year *</label>
-                            <select name="usyid" id="edit_syid" class="w-full px-3 py-2 border border-gray-300 rounded focus:ring-2 focus:ring-green-500" required>
-                                <?php 
-                                $syRes=$dbcon->query("SELECT syid, syname FROM sy ORDER BY syid DESC");
-                                while($sy=$syRes->fetch_assoc()) {
-                                    echo "<option value='".$sy['syid']."'>".htmlspecialchars($sy['syname'], ENT_QUOTES, 'UTF-8')."</option>";
-                                }
-                                ?>
-                            </select>
+                            <label class="block text-gray-700 font-semibold mb-1 text-sm">Enrolled Since (S.Y.)</label>
+                            <div class="w-full px-3 py-2 border border-gray-200 rounded bg-gray-100 text-sm font-semibold text-gray-700 flex items-center gap-2" id="edit_syid_display">
+                                <i class="icon-lock text-gray-400 text-xs"></i>
+                                <span id="edit_syid_label">—</span>
+                            </div>
+                            <input type="hidden" name="usyid" id="edit_syid">
+                            <p class="text-xs text-gray-400 mt-0.5">Set at registration — cannot be changed here.</p>
                         </div>
                         <div>
                             <label class="block text-gray-700 font-semibold mb-1 text-sm">Status *</label>
@@ -836,10 +953,8 @@ if(isset($_POST['action_type'])){
 
 <!-- ===================== FEES MODAL ===================== -->
 <div class="modal-overlay print-hide" id="feesModal" aria-hidden="true">
-    <div class="modal-dialog" style="max-width: 700px;">
-        <div class="modal-content">
+    <div class="modal-dialog" style="max-width: 950px;"> <div class="modal-content">
  
-            <!-- Header -->
             <div class="bg-gradient-to-r from-indigo-700 to-indigo-500 px-6 py-4 flex justify-between items-center">
                 <div>
                     <h4 class="text-lg font-bold text-white">Fee Assessment Manager</h4>
@@ -850,7 +965,6 @@ if(isset($_POST['action_type'])){
  
             <div class="modal-body p-6 space-y-5">
  
-                <!-- Student Info Banner -->
                 <div class="bg-indigo-50 border border-indigo-100 rounded-xl px-5 py-4 grid grid-cols-2 gap-y-1.5 text-sm text-indigo-900">
                     <div><b>Name:</b> <span id="fees_student_name" class="font-semibold"></span></div>
                     <div><b>ID Number:</b> <span id="fees_student_id" class="font-semibold"></span></div>
@@ -858,7 +972,6 @@ if(isset($_POST['action_type'])){
                     <div><b>Year Level:</b> <span id="fees_glevel" class="font-semibold"></span></div>
                 </div>
  
-                <!-- SY + Semester Picker -->
                 <div class="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-4">
                     <h5 class="text-xs font-bold uppercase tracking-widest text-gray-500">Select Term to Assess</h5>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -896,7 +1009,6 @@ if(isset($_POST['action_type'])){
                         </button>
                     </div>
  
-                    <!-- Fee Preview (shown after lookup) -->
                     <div id="fee_preview_box" style="display:none;" class="border border-indigo-200 rounded-xl bg-white p-4 mt-2">
                         <h6 class="text-xs font-bold uppercase tracking-wider text-indigo-700 mb-3 border-b border-indigo-100 pb-1">
                             Assessment Sheet &mdash; <span id="preview_term_label" class="normal-case font-semibold"></span>
@@ -931,25 +1043,24 @@ if(isset($_POST['action_type'])){
                         </div>
                     </div>
  
-                    <!-- Not Found Notice -->
                     <div id="fee_not_found_box" style="display:none;" class="border border-yellow-300 bg-yellow-50 rounded-xl p-4 text-sm text-yellow-800 font-medium">
                         ⚠️ <span id="fee_not_found_msg"></span>
                     </div>
                 </div>
  
-                <!-- Saved Balance Records Table -->
                 <div>
                     <h5 class="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">Saved Term Records</h5>
-                    <div class="border border-gray-200 rounded-xl overflow-hidden">
-                        <table class="w-full text-sm text-left">
+                    
+                    <div class="border border-gray-200 rounded-xl overflow-x-auto shadow-sm">
+                        <table class="w-full text-sm text-left min-w-[850px]"> 
                             <thead>
                                 <tr class="bg-gray-50 border-b border-gray-200 text-xs uppercase tracking-wider text-gray-500">
-                                    <th class="p-3">Term</th>
+                                    <th class="p-3 whitespace-nowrap">Term</th>
                                     <th class="p-3 text-right">Tuition</th>
                                     <th class="p-3 text-right">Misc</th>
                                     <th class="p-3 text-right">Lab</th>
                                     <th class="p-3 text-right">Other</th>
-                                    <th class="p-3 text-right">Total</th>
+                                    <th class="p-3 text-right bg-indigo-50/50">Total</th>
                                     <th class="p-3 text-right">Paid</th>
                                     <th class="p-3 text-right">Balance</th>
                                     <th class="p-3 text-center">Act.</th>
@@ -962,9 +1073,7 @@ if(isset($_POST['action_type'])){
                     </div>
                 </div>
  
-            </div><!-- /modal-body -->
- 
-            <div class="modal-footer bg-gray-50 flex justify-between items-center rounded-b-lg px-6 py-3">
+            </div><div class="modal-footer bg-gray-50 flex justify-between items-center rounded-b-lg px-6 py-3">
                 <button type="button" onclick="printFeesSummary()"
                         class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded text-sm flex items-center gap-2 shadow transition">
                     <i class="icon-print"></i> Print Summary
@@ -972,8 +1081,7 @@ if(isset($_POST['action_type'])){
                 <button type="button" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded text-sm" onclick="closeModal('feesModal')">Close</button>
             </div>
  
-        </div><!-- /modal-content -->
-    </div>
+        </div></div>
 </div>
 <!-- =================== END FEES MODAL =================== -->
 
@@ -1240,6 +1348,9 @@ function confirmSaveFees() {
 // ------------------------------------------------------------------
 // LOAD RECORDS: Populate the saved terms table
 // ------------------------------------------------------------------
+// ------------------------------------------------------------------
+// LOAD RECORDS: Populate the saved terms table
+// ------------------------------------------------------------------
 function loadBalanceRecords(csid) {
     $.ajax({
         type: 'POST',
@@ -1259,18 +1370,18 @@ function loadBalanceRecords(csid) {
             var html = '';
             rows.forEach(function(r) {
                 var balClass = r.balance > 0 ? 'text-red-600 font-bold' : 'text-green-600 font-bold';
-                html += `<tr class="hover:bg-indigo-50 transition text-xs">
-                    <td class="p-3 font-semibold text-indigo-900 whitespace-nowrap">${escapeHtml(r.syname)} <span class="text-gray-400 font-normal">(${escapeHtml(r.semester)})</span></td>
+                html += `<tr class="hover:bg-indigo-50 transition text-xs whitespace-nowrap">
+                    <td class="p-3 font-semibold text-indigo-900">${escapeHtml(r.syname)} <span class="text-gray-400 font-normal">(${escapeHtml(r.semester)})</span></td>
                     <td class="p-3 text-right">${formatPHP(r.tuition_fee)}</td>
                     <td class="p-3 text-right">${formatPHP(r.misc_fee)}</td>
                     <td class="p-3 text-right">${formatPHP(r.lab_fee)}</td>
                     <td class="p-3 text-right">${formatPHP(r.other_fee)}</td>
-                    <td class="p-3 text-right font-semibold">${formatPHP(r.total_fee)}</td>
+                    <td class="p-3 text-right font-semibold bg-indigo-50/40">${formatPHP(r.total_fee)}</td>
                     <td class="p-3 text-right text-green-600">${formatPHP(r.amount_paid)}</td>
                     <td class="p-3 text-right ${balClass}">${formatPHP(r.balance)}</td>
                     <td class="p-3 text-center">
-                        <button onclick="removeFeeRecord(${r.bid}, ${csid})"
-                                class="text-red-500 hover:text-red-700 font-black text-lg leading-none" title="Remove">&times;</button>
+                        <button type="button" onclick="removeFeeRecord(${csid}, ${r.syid}, ${r.sid})"
+                                class="text-red-500 hover:text-red-700 font-black text-lg leading-none transition-colors" title="Remove">&times;</button>
                     </td>
                 </tr>`;
             });
@@ -1285,13 +1396,13 @@ function loadBalanceRecords(csid) {
 // ------------------------------------------------------------------
 // REMOVE: Delete a student_balances row
 // ------------------------------------------------------------------
-function removeFeeRecord(bid, csid) {
+function removeFeeRecord(csid, syid, semid) {
     if(!confirm("Remove this fee record? This cannot be undone.")) return;
  
     $.ajax({
         type: 'POST',
         url: window.location.href,
-        data: { action_type: 'remove_fee_record', bid: bid },
+        data: { action_type: 'remove_fee_record', csid: csid, syid: syid, semid: semid },
         success: function() {
             loadBalanceRecords(csid);
         }
@@ -1375,6 +1486,12 @@ function escapeHtml(string) {
     return String(string).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+function formatPHP(amount) {
+    var val = parseFloat(amount);
+    if (isNaN(val)) val = 0;
+    return '₱ ' + val.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 function updateBulkDeleteButton() {
     var table = $('#dataTables-example').DataTable();
     var checkedBoxes = table.$('.student-checkbox:checked');
@@ -1410,7 +1527,10 @@ function triggerEditStudent(btn) {
     document.getElementById('edit_cid').value = btn.getAttribute('data-cid') || '';
     document.getElementById('edit_gid').value = btn.getAttribute('data-gid') || '';
     document.getElementById('edit_did').value = btn.getAttribute('data-did') || '';
-    document.getElementById('edit_syid').value = btn.getAttribute('data-syid') || '';
+    var syid = btn.getAttribute('data-syid') || '';
+    var syText = btn.closest('tr').querySelector('td:nth-child(7)').innerText.trim();
+    document.getElementById('edit_syid').value       = syid;
+    document.getElementById('edit_syid_label').innerText = syText || '—';
     document.getElementById('edit_sid').value = btn.getAttribute('data-sid') || '';
     document.getElementById('edit_guardian').value = btn.getAttribute('data-guardian') || '';
     document.getElementById('edit_mobile').value = btn.getAttribute('data-mobile') || '';
@@ -1432,6 +1552,19 @@ window.onclick = function(event) {
     if (event.target.classList.contains('modal-overlay')) {
         event.target.classList.remove('active');
     }
+}
+
+function downloadStudentCSVTemplate() {
+    // Header row matches the exact PHP import order
+    var header  = 'student_id,first_name,middle_name,last_name,gender,program_id,year_level_id,school_year_id,status_id,guardian_name,guardian_mobile,address,student_email,student_mobile\n';
+    var example = '2024-0207,Juan,Dela,Cruz,Male,2,1,3,1,Maria Cruz,09171234567,123 Rizal St Tabaco City,juan@email.com,09181234567\n' +
+                '2024-0219,Ana,,Reyes,Female,2,2,3,1,Pedro Reyes,09271234567,456 Mabini Ave Tabaco City,,\n';
+
+    var blob = new Blob([header + example], { type: 'text/csv' });
+    var a    = document.createElement('a');
+    a.href   = URL.createObjectURL(blob);
+    a.download = 'student_import_template.csv';
+    a.click();
 }
 
 $(document).ready(function() {

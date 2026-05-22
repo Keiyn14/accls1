@@ -3,8 +3,8 @@
 // 1. AJAX HANDLER: BATCH SAVE PROGRAM FEES
 // ==========================================
 if (isset($_POST['action']) && $_POST['action'] === 'save_program_fees') {
-    $sy_id = intval($_POST['sy_id']);
-    $sem_id = intval($_POST['sem_id']);
+    $syid = intval($_POST['syid']);
+    $sid = intval($_POST['sid']);
     $cid = intval($_POST['cid']);
     
     // Loop through the submitted fees for years 1 to 4
@@ -16,8 +16,8 @@ if (isset($_POST['action']) && $_POST['action'] === 'save_program_fees') {
         $o_fee = floatval($amounts['other']);
 
         // Update the specific year level
-        $updateStmt = $dbcon->prepare("UPDATE fees SET tuition_fee=?, misc_fee=?, lab_fee=?, other_fee=? WHERE sy_id=? AND sem_id=? AND cid=? AND year_level=?");
-        $updateStmt->bind_param("ddddiiii", $t_fee, $m_fee, $l_fee, $o_fee, $sy_id, $sem_id, $cid, $yr);
+        $updateStmt = $dbcon->prepare("UPDATE fees SET tuition_fee=?, misc_fee=?, lab_fee=?, other_fee=? WHERE syid=? AND sid=? AND cid=? AND year_level=?");
+        $updateStmt->bind_param("ddddiiii", $t_fee, $m_fee, $l_fee, $o_fee, $syid, $sid, $cid, $yr);
         $updateStmt->execute();
     }
     
@@ -31,11 +31,11 @@ $message = '';
 // 2. INITIALIZE ADD SEMESTER - SCHOOL YEAR
 // ==========================================
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['init_sy_sem'])) {
-    $new_sy = intval($_POST['sy_id']);
-    $new_sem = intval($_POST['sem_id']);
+    $new_sy = intval($_POST['syid']);
+    $new_sem = intval($_POST['sid']);
 
     // ── Duplicate check ──────────────────────────────────────────
-    $dupCheck = $dbcon->query("SELECT fee_id FROM fees WHERE sy_id=$new_sy AND sem_id=$new_sem LIMIT 1");
+    $dupCheck = $dbcon->query("SELECT fee_id FROM fees WHERE syid=$new_sy AND sid=$new_sem LIMIT 1");
     if ($dupCheck && $dupCheck->num_rows > 0) {
         $page = isset($_GET['_a!%@1!2%']) ? $_GET['_a!%@1!2%'] : '';
         echo "<script>window.location.href='?_a!%@1!2%={$page}&view_sy=all&view_sem=all&msg=duplicate';</script>";
@@ -49,9 +49,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['init_sy_sem'])) {
     while ($p = $progs->fetch_assoc()) {
         $cid = $p['cid'];
         for ($yr = 1; $yr <= 4; $yr++) {
-            $chk = $dbcon->query("SELECT fee_id FROM fees WHERE sy_id=$new_sy AND sem_id=$new_sem AND cid=$cid AND year_level=$yr");
+            $chk = $dbcon->query("SELECT fee_id FROM fees WHERE syid=$new_sy AND sid=$new_sem AND cid=$cid AND year_level=$yr");
             if ($chk->num_rows == 0) {
-                $dbcon->query("INSERT INTO fees (sy_id, sem_id, cid, year_level, tuition_fee, misc_fee, lab_fee, other_fee) VALUES ($new_sy, $new_sem, $cid, $yr, 0, 0, 0, 0)");
+                $dbcon->query("INSERT INTO fees (syid, sid, cid, year_level, tuition_fee, misc_fee, lab_fee, other_fee) VALUES ($new_sy, $new_sem, $cid, $yr, 0, 0, 0, 0)");
             }
         }
     }
@@ -138,20 +138,20 @@ $view_sem = isset($_GET['view_sem']) ? $_GET['view_sem'] : 'all';
         // Construct dynamic WHERE clause based on filters
         $whereConditions = [];
         if ($view_sy !== 'all') {
-            $whereConditions[] = "f.sy_id = " . intval($view_sy);
+            $whereConditions[] = "f.syid = " . intval($view_sy);
         }
         if ($view_sem !== 'all') {
-            $whereConditions[] = "f.sem_id = " . intval($view_sem);
+            $whereConditions[] = "f.sid = " . intval($view_sem);
         }
         
         $whereSql = count($whereConditions) > 0 ? "WHERE " . implode(" AND ", $whereConditions) : "";
 
         // Fetch distinct active catalogs matching the filter
         $catalogsQuery = "
-            SELECT DISTINCT f.sy_id, f.sem_id, sy.syname, sem.semester 
+            SELECT DISTINCT f.syid, f.sid, sy.syname, sem.semester 
             FROM fees f
-            JOIN sy ON f.sy_id = sy.syid
-            JOIN sem ON f.sem_id = sem.sid
+            JOIN sy ON f.syid = sy.syid
+            JOIN sem ON f.sid = sem.sid
             $whereSql
             ORDER BY sy.syid DESC, sem.sid ASC
         ";
@@ -161,8 +161,8 @@ $view_sem = isset($_GET['view_sem']) ? $_GET['view_sem'] : 'all';
             $isFirstCatalog = true; // Flag to keep the first (newest) catalog open by default
 
             while ($cat = $catalogs->fetch_assoc()) {
-                $curr_sy = $cat['sy_id'];
-                $curr_sem = $cat['sem_id'];
+                $curr_sy = $cat['syid'];
+                $curr_sem = $cat['sid'];
                 
                 // Determine initial toggle state
                 $contentClass = $isFirstCatalog ? '' : 'hidden';
@@ -184,7 +184,7 @@ $view_sem = isset($_GET['view_sem']) ? $_GET['view_sem'] : 'all';
                             SELECT DISTINCT f.cid, o.program 
                             FROM fees f 
                             JOIN offerings o ON f.cid = o.cid 
-                            WHERE f.sy_id = $curr_sy AND f.sem_id = $curr_sem
+                            WHERE f.syid = $curr_sy AND f.sid = $curr_sem
                             ORDER BY o.program ASC
                         ";
                         $progs = $dbcon->query($progsQuery);
@@ -206,8 +206,8 @@ $view_sem = isset($_GET['view_sem']) ? $_GET['view_sem'] : 'all';
                                     <div class="hidden border-t border-gray-200 p-0 program-content bg-white">
                                         <form class="program-fee-form m-0">
                                             <input type="hidden" name="action" value="save_program_fees">
-                                            <input type="hidden" name="sy_id" value="<?php echo $curr_sy; ?>">
-                                            <input type="hidden" name="sem_id" value="<?php echo $curr_sem; ?>">
+                                            <input type="hidden" name="syid" value="<?php echo $curr_sy; ?>">
+                                            <input type="hidden" name="sid" value="<?php echo $curr_sem; ?>">
                                             <input type="hidden" name="cid" value="<?php echo $cid; ?>">
                                             
                                             <div class="overflow-x-auto">
@@ -224,7 +224,7 @@ $view_sem = isset($_GET['view_sem']) ? $_GET['view_sem'] : 'all';
                                                     <tbody class="divide-y divide-gray-100">
                                                         <?php
                                                         for ($yr = 1; $yr <= 4; $yr++) {
-                                                            $feeDataQuery = $dbcon->query("SELECT tuition_fee, misc_fee, lab_fee, other_fee FROM fees WHERE sy_id=$curr_sy AND sem_id=$curr_sem AND cid=$cid AND year_level=$yr");
+                                                            $feeDataQuery = $dbcon->query("SELECT tuition_fee, misc_fee, lab_fee, other_fee FROM fees WHERE syid=$curr_sy AND sid=$curr_sem AND cid=$cid AND year_level=$yr");
                                                             $fd = $feeDataQuery->fetch_assoc();
                                                             
                                                             $t_val = $fd ? number_format($fd['tuition_fee'], 2, '.', '') : '0.00';
@@ -288,7 +288,7 @@ $view_sem = isset($_GET['view_sem']) ? $_GET['view_sem'] : 'all';
                     
                     <div>
                         <label class="block text-gray-700 font-bold mb-2 text-sm">School Year <span class="text-red-500">*</span></label>
-                        <select name="sy_id" required class="w-full px-3 py-2 border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 bg-white">
+                        <select name="syid" required class="w-full px-3 py-2 border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 bg-white">
                             <?php foreach($sy_options as $sy): ?>
                                 <option value="<?php echo $sy['id']; ?>"><?php echo htmlspecialchars($sy['name']); ?></option>
                             <?php endforeach; ?>
@@ -297,7 +297,7 @@ $view_sem = isset($_GET['view_sem']) ? $_GET['view_sem'] : 'all';
 
                     <div>
                         <label class="block text-gray-700 font-bold mb-2 text-sm">Semester <span class="text-red-500">*</span></label>
-                        <select name="sem_id" required class="w-full px-3 py-2 border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 bg-white">
+                        <select name="sid" required class="w-full px-3 py-2 border border-gray-300 rounded focus:border-green-500 focus:ring-1 focus:ring-green-500 bg-white">
                             <?php foreach($sem_options as $sem): ?>
                                 <option value="<?php echo $sem['id']; ?>"><?php echo htmlspecialchars($sem['name']); ?></option>
                             <?php endforeach; ?>

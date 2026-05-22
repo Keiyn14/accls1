@@ -86,10 +86,57 @@
 ══════════════════════════════════════════ */
 if (isset($_POST['btnSetActiveSY'])) {
     $activeSyId = (int)$_POST['activeSyId'];
+
+    // 1. Get current active SY start year
+    $oldStartYear = 0;
+    $rOld = $dbcon->query("SELECT syname FROM sy WHERE status='Active' LIMIT 1");
+    if ($rOld && $rOld->num_rows > 0) {
+        $oldStartYear = (int)substr(trim($rOld->fetch_assoc()['syname']), 0, 4);
+    }
+
+    // 2. Get new SY start year
+    $newStartYear = 0;
+    $rNew = $dbcon->query("SELECT syname FROM sy WHERE syid=" . $activeSyId);
+    if ($rNew && $rNew->num_rows > 0) {
+        $newStartYear = (int)substr(trim($rNew->fetch_assoc()['syname']), 0, 4);
+    }
+
+    $diff = $newStartYear - $oldStartYear;
+
+    // 3. Set active SY
     $dbcon->query("UPDATE sy SET status='Inactive'");
     if ($dbcon->query("UPDATE sy SET status='Active' WHERE syid=" . $activeSyId)) {
+
+        if ($diff !== 0 && $oldStartYear !== 0) {
+
+            // 4. Fetch grade levels in order (e.g. gid: 5, 6, 7, 9)
+            $rGL = $dbcon->query("SELECT gid FROM gradelevel ORDER BY gid ASC");
+            $gids = [];
+            while ($gl = $rGL->fetch_assoc()) {
+                $gids[] = (int)$gl['gid'];
+            }
+            $maxIdx = count($gids) - 1;
+
+            // 5. Build CASE to shift gid by diff positions
+            $cases = "";
+            foreach ($gids as $idx => $gid) {
+                $newIdx = max(0, min($maxIdx, $idx + $diff));
+                $newGid = $gids[$newIdx];
+                $cases .= " WHEN {$gid} THEN {$newGid}";
+            }
+
+            // 6. Update students.gid
+            if ($cases) {
+                $dbcon->query("UPDATE students SET gid = CASE gid {$cases} END");
+            }
+        }
+
+        $shiftMsg = '';
+        if ($diff > 0) $shiftMsg = " Student year levels shifted <strong>up by {$diff}</strong>.";
+        if ($diff < 0) $shiftMsg = " Student year levels shifted <strong>down by " . abs($diff) . "</strong>.";
+
         echo '<div class="border-l-4 border-green-500 bg-green-50 text-green-700 p-4 mb-4 rounded-r-lg">
-                <span class="font-semibold">Success!</span> Active School Year updated.
+                <span class="font-semibold">Success!</span> Active School Year updated.' . $shiftMsg . '
               </div>';
     }
 }
