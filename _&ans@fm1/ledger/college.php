@@ -493,7 +493,7 @@ if(isset($_POST['action_type'])){
         <div class="flex items-center gap-3">
             <div class="text-sm font-bold text-gray-700 uppercase tracking-wide">Cash Collection Workstation</div>
             <button type="button" onclick="openModal('bulkPaymentModal')"
-                    class="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition duration-200 text-sm inline-flex items-center gap-1.5">
+                    class="px-5 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-semibold rounded-lg shadow-sm transition duration-200 text-base inline-flex items-center gap-2">
                 <i class="icon-list-alt"></i> Bulk Payment Entry
             </button>
             </div>
@@ -686,8 +686,7 @@ if(isset($_POST['action_type'])){
                                             <td class="px-4 py-2.5 print-hide">
                                                 <div class="flex gap-2 justify-center">
                                                     <button type="button"
-                                                            class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition duration-200 inline-flex items-center gap-1 text-xs <?php echo $isPaid ? 'opacity-50 cursor-not-allowed' : ''; ?>"
-                                                            <?php echo $isPaid ? 'disabled' : ''; ?>
+                                                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition duration-200 inline-flex items-center gap-1 text-sm
                                                             onclick="triggerPaymentModal(this)"
                                                             data-csid="<?php echo $csid; ?>"
                                                             data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
@@ -700,7 +699,7 @@ if(isset($_POST['action_type'])){
                                                         <i class="icon-money"></i> Pay
                                                     </button>
                                                     <button type="button"
-                                                            class="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-sm transition duration-200 inline-flex items-center gap-1 text-xs"
+                                                            class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg shadow-sm transition duration-200 inline-flex items-center gap-1 text-sm"
                                                             onclick="triggerSOAModal(this)"
                                                             data-csid="<?php echo $csid; ?>"
                                                             data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
@@ -988,7 +987,7 @@ if(isset($_POST['action_type'])){
                         <div class="bg-gray-100 px-4 py-2 border-b border-gray-200 flex justify-between items-center">
                             <span class="text-xs font-bold text-gray-600 uppercase tracking-wider">Payment Rows</span>
                             <button type="button" onclick="addBulkRow()"
-                                    class="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-xs shadow transition inline-flex items-center gap-1">
+                                    class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg text-sm shadow transition inline-flex items-center gap-1">
                                 <i class="icon-plus"></i> Add Row
                             </button>
                         </div>
@@ -1021,15 +1020,91 @@ if(isset($_POST['action_type'])){
                         <code class="block bg-white border border-blue-200 rounded px-3 py-2 text-xs font-mono text-gray-800">
                             student_id, school_year, semester, or_number, payment_date, amount, remarks
                         </code>
-                        <p class="text-xs mt-2 text-blue-700">
-                            Example: <span class="font-mono">2024-0207, 2025-2026, 1st Semester, OR-10452, 2025-09-15, 5000, Downpayment</span>
-                        </p>
-                        <p class="text-xs mt-1 text-blue-600">
-                            • <b>school_year</b> must match exactly (e.g. <i>2025-2026</i>) &nbsp;•&nbsp; <b>semester</b> must match exactly (e.g. <i>1st Semester</i>)<br>
-                            • <b>payment_date</b> format: YYYY-MM-DD &nbsp;•&nbsp; <b>remarks</b> column is optional
-                        </p>
+
+                        <!-- Column reference table -->
+                        <div class="mt-3 border border-blue-200 rounded-lg overflow-hidden">
+                            <table class="w-full text-xs">
+                                <thead>
+                                    <tr class="bg-blue-100 text-blue-800 uppercase font-bold">
+                                        <th class="px-3 py-1.5 text-left">#</th>
+                                        <th class="px-3 py-1.5 text-left">Column</th>
+                                        <th class="px-3 py-1.5 text-left">Valid Values</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-blue-100 bg-white text-blue-900">
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">1</td>
+                                        <td class="px-3 py-1.5 font-semibold">student_id</td>
+                                        <td class="px-3 py-1.5 text-gray-600">The student's ID number e.g. <span class="font-mono">2024-0207</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">2</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">school_year</td>
+                                        <td class="px-3 py-1.5">
+                                            <span class="text-gray-500 text-xs block mb-1">Must match exactly one of:</span>
+                                            <div class="flex flex-wrap gap-1">
+                                                <?php
+                                                $syGuide = $dbcon->query("SELECT syname, status FROM sy ORDER BY syid DESC");
+                                                while($sg = $syGuide->fetch_assoc()):
+                                                    $isActive = $sg['status'] === 'Active';
+                                                ?>
+                                                <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border
+                                                    <?php echo $isActive ? 'bg-blue-200 text-blue-900 border-blue-300' : 'bg-gray-100 text-gray-700 border-gray-200'; ?>">
+                                                    <span class="font-mono"><?php echo htmlspecialchars($sg['syname'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                    <?php if($isActive): ?><span class="text-blue-600 font-bold">★</span><?php endif; ?>
+                                                </span>
+                                                <?php endwhile; ?>
+                                            </div>
+                                            <p class="text-xs text-blue-600 mt-1">★ = currently active school year</p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">3</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">semester</td>
+                                        <td class="px-3 py-1.5">
+                                            <span class="text-gray-500 text-xs block mb-1">Must match exactly one of:</span>
+                                            <div class="flex flex-wrap gap-1">
+                                                <?php
+                                                $semGuide = $dbcon->query("SELECT semester, status FROM sem ORDER BY sid ASC");
+                                                while($sg = $semGuide->fetch_assoc()):
+                                                    $isActive = $sg['status'] === 'Active';
+                                                ?>
+                                                <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border
+                                                    <?php echo $isActive ? 'bg-green-100 text-green-800 border-green-300' : 'bg-gray-100 text-gray-700 border-gray-200'; ?>">
+                                                    <span class="font-mono"><?php echo htmlspecialchars($sg['semester'], ENT_QUOTES, 'UTF-8'); ?></span>
+                                                    <?php if($isActive): ?><span class="text-green-600 font-bold">★</span><?php endif; ?>
+                                                </span>
+                                                <?php endwhile; ?>
+                                            </div>
+                                            <p class="text-xs text-green-600 mt-1">★ = currently active semester</p>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">4</td>
+                                        <td class="px-3 py-1.5 font-semibold">or_number</td>
+                                        <td class="px-3 py-1.5 text-gray-600">Official receipt number e.g. <span class="font-mono">OR-10452</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">5</td>
+                                        <td class="px-3 py-1.5 font-semibold">payment_date</td>
+                                        <td class="px-3 py-1.5 text-gray-600">Format: <span class="font-mono">YYYY-MM-DD</span> e.g. <span class="font-mono">2025-09-15</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">6</td>
+                                        <td class="px-3 py-1.5 font-semibold">amount</td>
+                                        <td class="px-3 py-1.5 text-gray-600">Numeric only e.g. <span class="font-mono">5000</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td class="px-3 py-1.5 font-mono text-gray-500">7</td>
+                                        <td class="px-3 py-1.5 font-semibold">remarks</td>
+                                        <td class="px-3 py-1.5 text-gray-600">Optional — e.g. <span class="font-mono">Downpayment</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
                         <a href="#" onclick="downloadCSVTemplate(); return false;"
-                           class="inline-flex items-center gap-1 mt-2 text-xs font-bold text-blue-700 hover:text-blue-900 underline">
+                        class="inline-flex items-center gap-1 mt-3 text-xs font-bold text-blue-700 hover:text-blue-900 underline">
                             <i class="icon-download"></i> Download blank template
                         </a>
                     </div>
@@ -1551,6 +1626,21 @@ $(document).ready(function() {
             $(this).addClass('bg-green-50');
         }
     });
+
+    // ── AUTO-OPEN: if redirected from colstudents with ?open_csid=X ──
+    var urlParams = new URLSearchParams(window.location.search);
+    var openCsid  = urlParams.get('open_csid');
+    if (openCsid) {
+        var $targetRow = $('.student-parent-row[data-csid="' + openCsid + '"]');
+        if ($targetRow.length) {
+            var $child = $('#child-' + openCsid);
+            var $chev  = $targetRow.find('.student-chevron');
+            $child.removeClass('hidden');
+            $chev.css('transform', 'rotate(90deg)');
+            $targetRow.addClass('bg-green-50');
+            $('html, body').animate({ scrollTop: $targetRow.offset().top - 100 }, 500);
+        }
+    }
 
     // ── 2. FILTER LOGIC ──────────────────────────────────────────────
     function applyFilters() {

@@ -93,7 +93,7 @@ $grandBalance = 0;
 
     <!-- ── Filter / Action Bar ─────────────────────────────────────────── -->
     <div class="flex flex-wrap lg:flex-nowrap gap-4 mb-6 justify-between items-center bg-white p-4 rounded-xl shadow-sm border border-gray-100 print-hide">
-        <button onclick="printSummaryReport()" class="px-5 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 text-sm">
+        <button onclick="printSummaryReport()" class="px-6 py-3 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition duration-200 text-base inline-flex items-center gap-2">
             <i class="icon-print"></i> Print Filtered Report
         </button>
         <div class="flex flex-wrap gap-3 items-center">
@@ -177,7 +177,7 @@ $grandBalance = 0;
                             <td class="px-4 py-3 text-center"><?php echo $balLabel; ?></td>
                             <td class="px-4 py-3 text-center print-hide">
                                 <button type="button"
-                                        class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-xs shadow transition duration-150 inline-flex items-center gap-1"
+                                        class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg text-sm shadow transition duration-150 inline-flex items-center gap-1"
                                         onclick="openSOA(this)"
                                         data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES); ?>"
                                         data-studentid="<?php echo htmlspecialchars($row['studentid'] ?? '', ENT_QUOTES); ?>"
@@ -392,32 +392,58 @@ function printSOA() {
 function printSummaryReport() {
     if (!$.fn.DataTable.isDataTable('#dataTables-example')) { window.print(); return; }
 
-    var table = $('#dataTables-example').DataTable();
-    var prevLen = table.page.len();
-    table.page.len(-1).draw(false);
-
+    var table    = $('#dataTables-example').DataTable();
     var logoSrc  = "<?php echo $defaultPic; ?>";
-    var pFilter  = $('#reportProgram').val() || 'ALL';
-    var syFilter = $('#reportSY').val()      || 'ALL';
-    var semFilter= $('#reportSem').val()     || 'ALL';
+    var pFilter  = $('#reportProgram').val() || '';
+    var syFilter = $('#reportSY').val()      || '';
+    var semFilter= $('#reportSem').val()     || '';
 
-    var rows = '';
+    // Get all filtered rows (respects active SY/Sem/Program filters, ignores pagination)
+    var rows = Array.from(table.rows({ search: 'applied' }).nodes());
+
     var totPaid = 0, totBal = 0;
 
-    $('#dataTables-example tbody tr:visible').each(function() {
-        var c = $(this).find('td');
+    // Group by program when no program filter is active
+    var groups = {}, order = [];
+    rows.forEach(function(tr) {
+        var c = $(tr).find('td');
         if (c.length < 5) return;
-        var paid = parseFloat(c.eq(3).text().replace(/[^0-9.-]/g,'')) || 0;
-        var balTxt = c.eq(4).text().trim();
-        var bal  = (balTxt.toLowerCase().indexOf('fully') !== -1) ? 0 : (parseFloat(balTxt.replace(/[^0-9.-]/g,'')) || 0);
-        totPaid += paid; totBal += bal;
-        rows += '<tr><td>' + c.eq(0).text() + '</td><td>' + c.eq(1).text() + '</td><td>' +
-            c.eq(2).text() + '</td><td style="text-align:right;">' + c.eq(3).text() +
-            '</td><td style="text-align:center;">' + balTxt + '</td></tr>';
+        var prog = c.eq(2).text().trim();
+        if (!groups[prog]) { groups[prog] = []; order.push(prog); }
+        groups[prog].push(tr);
     });
 
-    table.page.len(prevLen).draw(false);
+    var bodyHTML = '';
+    order.forEach(function(prog) {
+        // Program header row — only show when printing multiple programs
+        if (!pFilter) {
+            bodyHTML += '<tr><td colspan="5" style="background:#1a5c2f;color:#fff;font-weight:bold;padding:6px 10px;text-transform:uppercase;font-size:12px;">&#9632; ' + prog + ' (' + groups[prog].length + ' students)</td></tr>';
+        }
+        var groupPaid = 0, groupBal = 0;
+        groups[prog].forEach(function(tr) {
+            var c = $(tr).find('td');
+            var paid = parseFloat(c.eq(3).text().replace(/[^0-9.-]/g,'')) || 0;
+            var balTxt = c.eq(4).text().trim();
+            var bal  = (balTxt.toLowerCase().indexOf('fully') !== -1) ? 0 : (parseFloat(balTxt.replace(/[^0-9.-]/g,'')) || 0);
+            totPaid += paid;
+            totBal  += bal;
+            groupPaid += paid;
+            groupBal  += bal;
+            bodyHTML += '<tr><td>' + c.eq(0).text() + '</td><td>' + c.eq(1).text() + '</td><td>' +
+                c.eq(2).text() + '</td><td style="text-align:right;">' + c.eq(3).text() +
+                '</td><td style="text-align:center;">' + balTxt + '</td></tr>';
+        });
+        if (!pFilter) {
+            bodyHTML += '<tr style="background:#f0fdf4;">' +
+                '<td colspan="3" style="text-align:right;font-weight:bold;font-size:12px;color:#166534;border-top:2px solid #166534;">Subtotal — ' + prog + ':</td>' +
+                '<td style="text-align:right;font-weight:bold;color:#1d4ed8;border-top:2px solid #166534;">' + formatNum(groupPaid) + '</td>' +
+                '<td style="text-align:center;font-weight:bold;color:#dc2626;border-top:2px solid #166534;">' + formatNum(groupBal) + '</td>' +
+            '</tr>';
+            bodyHTML += '<tr><td colspan="5" style="border:none;padding:6px;"></td></tr>';
+        }
+    });
 
+    var titleSuffix = pFilter ? ' — ' + pFilter.toUpperCase() : '';
     var w = window.open('', '_blank');
     w.document.write(`<!DOCTYPE html><html><head>
         <title>Ledger Summary Report</title>
@@ -425,7 +451,7 @@ function printSummaryReport() {
             body{font-family:Arial,sans-serif;margin:40px;color:#000;}
             .hdr{text-align:center;margin-bottom:28px;position:relative;}
             .hdr img{position:absolute;left:0;top:0;width:80px;height:80px;object-fit:contain;}
-            .hdr h2{margin:0;font-size:24px;font-family:"Times New Roman",serif;font-weight:bold;}
+            .hdr h2{margin:0;font-size:24px;font-family:"Times New Roman",serif;font-weight:bold;padding:0 90px;}
             .doc-title{font-weight:bold;font-size:16px;text-decoration:underline;margin-top:18px;}
             .meta{font-size:13px;font-weight:bold;margin-bottom:14px;background:#f3f4f6;padding:8px 12px;border-radius:4px;display:flex;gap:20px;}
             table{width:100%;border-collapse:collapse;margin-top:10px;}
@@ -440,12 +466,12 @@ function printSummaryReport() {
             <img src="${logoSrc}" alt="Logo" onerror="this.style.display='none'">
             <h2>AMANDO COPE COLLEGE</h2>
             <p style="margin:5px 0 0 0;font-size:14px;">A.A Baranghawon Tabaco City</p>
-            <div class="doc-title">LEDGER ACCOUNTS AUDIT SUMMARY REPORT</div>
+            <div class="doc-title">LEDGER ACCOUNTS SUMMARY${titleSuffix}</div>
         </div>
         <div class="meta">
-            <span>PROGRAM: ${pFilter}</span>
-            <span>SCHOOL YEAR: ${syFilter}</span>
-            <span>SEMESTER: ${semFilter}</span>
+            <span>PROGRAM: ${pFilter || 'ALL'}</span>
+            <span>SCHOOL YEAR: ${syFilter || 'ALL'}</span>
+            <span>SEMESTER: ${semFilter || 'ALL'}</span>
         </div>
         <table>
             <thead><tr>
@@ -453,7 +479,7 @@ function printSummaryReport() {
                 <th style="text-align:right;">Total Collected</th>
                 <th style="text-align:center;">Balance</th>
             </tr></thead>
-            <tbody>${rows}</tbody>
+            <tbody>${bodyHTML}</tbody>
             <tfoot><tr>
                 <td colspan="3" style="text-align:right;">TOTAL ACCUMULATION:</td>
                 <td style="text-align:right;color:#1d4ed8;">${formatNum(totPaid)}</td>

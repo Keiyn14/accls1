@@ -140,49 +140,49 @@ while($cRow = $colQRes->fetch_assoc()){
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         
         <a href="<?php echo accls().'/_&ans@fm1/?&_a!%@1!2%='.encCode('collegestudents'); ?>" 
-           class="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-blue-500 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+           class="group flex items-center justify-between bg-blue-600 border border-blue-600 rounded-2xl p-4 shadow-sm hover:shadow-md hover:bg-blue-700 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
             <div class="flex items-center gap-4">
-                <div class="bg-blue-50 text-blue-600 p-3 rounded-xl text-base flex items-center justify-center w-12 h-12 group-hover:bg-blue-100 transition-colors">
+                <div class="bg-white/20 text-white p-3 rounded-xl text-base flex items-center justify-center w-12 h-12">
                     <i class="icon-user"></i>
                 </div>
                 <div>
-                    <p class="font-bold text-gray-800 text-sm group-hover:text-blue-600 transition-colors">Manage Learners</p>
-                    <p class="text-xs text-gray-400 mt-0.5">Profiles & Enrollment</p>
+                    <p class="font-bold text-white text-sm">Manage Learners</p>
+                    <p class="text-xs text-blue-200 mt-0.5">Profiles & Enrollment</p>
                 </div>
             </div>
-            <div class="text-gray-300 group-hover:text-blue-500 transition-colors pr-1">
+            <div class="text-white/60 pr-1">
                 <i class="icon-chevron-right text-xs"></i>
             </div>
         </a>
 
         <a href="<?php echo accls().'/_&ans@fm1/?&_a!%@1!2%='.encCode('collegeledger'); ?>" 
-           class="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-emerald-500 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+           class="group flex items-center justify-between bg-emerald-600 border border-emerald-600 rounded-2xl p-4 shadow-sm hover:shadow-md hover:bg-emerald-700 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
             <div class="flex items-center gap-4">
-                <div class="bg-emerald-50 text-emerald-600 p-3 rounded-xl text-base flex items-center justify-center w-12 h-12 group-hover:bg-emerald-100 transition-colors">
+                <div class="bg-white/20 text-white p-3 rounded-xl text-base flex items-center justify-center w-12 h-12">
                     <i class="icon-money"></i>
                 </div>
                 <div>
-                    <p class="font-bold text-gray-800 text-sm group-hover:text-emerald-600 transition-colors">College Remittance</p>
-                    <p class="text-xs text-gray-400 mt-0.5">Collect & Check Fees</p>
+                    <p class="font-bold text-white text-sm">College Remittance</p>
+                    <p class="text-xs text-emerald-200 mt-0.5">Collect & Check Fees</p>
                 </div>
             </div>
-            <div class="text-gray-300 group-hover:text-emerald-500 transition-colors pr-1">
+            <div class="text-white/60 pr-1">
                 <i class="icon-chevron-right text-xs"></i>
             </div>
         </a>
 
         <a href="<?php echo accls().'/_&ans@fm1/?&_a!%@1!2%='.encCode('ledgermonitoring'); ?>" 
-           class="group flex items-center justify-between bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-md hover:border-amber-500 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
+           class="group flex items-center justify-between bg-amber-500 border border-amber-500 rounded-2xl p-4 shadow-sm hover:shadow-md hover:bg-amber-600 hover:-translate-y-1 transition-all duration-200 cursor-pointer">
             <div class="flex items-center gap-4">
-                <div class="bg-amber-50 text-amber-600 p-3 rounded-xl text-base flex items-center justify-center w-12 h-12 group-hover:bg-amber-100 transition-colors">
+                <div class="bg-white/20 text-white p-3 rounded-xl text-base flex items-center justify-center w-12 h-12">
                     <i class="icon-list"></i>
                 </div>
                 <div>
-                    <p class="font-bold text-gray-800 text-sm group-hover:text-amber-600 transition-colors">Ledger Audit Logs</p>
-                    <p class="text-xs text-gray-400 mt-0.5">Track Transactions</p>
+                    <p class="font-bold text-white text-sm">Ledger Audit Logs</p>
+                    <p class="text-xs text-amber-100 mt-0.5">Track Transactions</p>
                 </div>
             </div>
-            <div class="text-gray-300 group-hover:text-amber-500 transition-colors pr-1">
+            <div class="text-white/60 pr-1">
                 <i class="icon-chevron-right text-xs"></i>
             </div>
         </a>

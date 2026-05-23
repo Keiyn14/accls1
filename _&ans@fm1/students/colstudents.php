@@ -18,6 +18,19 @@ if(isset($_POST['action_type'])){
             exit();
         }
 
+        // Check if student has any outstanding balance from a previous term
+        $balChk = $dbcon->query("SELECT SUM(total_fee - amount_paid) as outstanding FROM student_balances WHERE csid = $csid AND total_fee > amount_paid");
+        $balRow = $balChk ? $balChk->fetch_assoc() : null;
+        $outstanding = floatval($balRow['outstanding'] ?? 0);
+        if ($outstanding > 0) {
+            echo json_encode([
+                "status"      => "has_balance",
+                "outstanding" => $outstanding,
+                "csid"        => $csid
+            ]);
+            exit();
+        }
+
         // 1. Calculate Tuition from enrolled subjects for this specific term as a base/fallback
         $tuition_fee = 0.00;
         $tQry = $dbcon->query("SELECT IFNULL(SUM(price), 0) as t_fee FROM student_subjects WHERE csid = $csid AND syid = $syid AND sid = $semid");
@@ -441,11 +454,23 @@ if(isset($_POST['action_type'])){
                     $mname     = trim($data[2]);
                     $lname     = trim($data[3]);
                     $gender    = trim($data[4]);
-                    $cid       = intval(trim($data[5])); 
-                    $gid       = intval(trim($data[6])); 
+                    $progName = $dbcon->real_escape_string(trim($data[5]));
+                    $cidRes = $dbcon->query("SELECT cid FROM offerings WHERE program = '$progName' AND did=1 LIMIT 1");
+                    if(!$cidRes || $cidRes->num_rows === 0) continue; // skip if program not found
+                    $cid = intval($cidRes->fetch_assoc()['cid']);
+                    $glevelName = $dbcon->real_escape_string(trim($data[6]));
+                    $gidRes = $dbcon->query("SELECT gid FROM gradelevel WHERE glevel = '$glevelName' LIMIT 1");
+                    if(!$gidRes || $gidRes->num_rows === 0) continue; // skip if year level not found
+                    $gid = intval($gidRes->fetch_assoc()['gid']); 
                     $did       = 0; // Department removed from CSV — defaults to 0
-                    $syid      = intval(trim($data[7])); 
-                    $sid       = intval(trim($data[8])); 
+                    $syName = $dbcon->real_escape_string(trim($data[7]));
+                    $syidRes = $dbcon->query("SELECT syid FROM sy WHERE syname = '$syName' LIMIT 1");
+                    if(!$syidRes || $syidRes->num_rows === 0) continue; // skip if SY not found
+                    $syid = intval($syidRes->fetch_assoc()['syid']); 
+                    $statusName = $dbcon->real_escape_string(trim($data[8]));
+                    $sidRes = $dbcon->query("SELECT sid FROM status WHERE remark = '$statusName' LIMIT 1");
+                    if(!$sidRes || $sidRes->num_rows === 0) continue; // skip if status not found
+                    $sid = intval($sidRes->fetch_assoc()['sid']); 
                     $guardian  = trim($data[9]);
                     $mobile    = trim($data[10]);
                     $address   = trim($data[11]);
@@ -656,7 +681,7 @@ if(isset($_POST['action_type'])){
                         <p class="text-xs mb-2">Each row must follow this exact column order (header row optional):</p>
                         <code class="block bg-white border border-blue-200 rounded px-3 py-2 text-xs font-mono text-gray-800 leading-relaxed">
                             student_id, first_name, middle_name, last_name, gender,<br>
-                            &nbsp;program_id, year_level_id, school_year_id, status_id,<br>
+                            &nbsp;program, year_level, school_year, status,<br>
                             &nbsp;guardian_name, guardian_mobile, address, student_email, student_mobile
                         </code>
 
@@ -678,16 +703,15 @@ if(isset($_POST['action_type'])){
                                     <tr><td class="px-3 py-1.5 font-mono text-gray-500">5</td><td class="px-3 py-1.5 font-semibold">gender</td><td class="px-3 py-1.5 text-gray-600"><span class="font-mono">Male</span> or <span class="font-mono">Female</span></td></tr>
                                     <tr>
                                         <td class="px-3 py-1.5 font-mono text-gray-500">6</td>
-                                        <td class="px-3 py-1.5 font-semibold align-top">program_id</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">program</td>
                                         <td class="px-3 py-1.5 text-gray-600">
-                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">offerings</span> (cid):</span>
-                                            <div class="mt-1 flex flex-wrap gap-1">
+                                            <span class="text-gray-500 text-xs block mb-1">Must match exactly one of:</span>
+                                            <div class="flex flex-wrap gap-1">
                                                 <?php
-                                                $r = $dbcon->query("SELECT cid, program FROM offerings ORDER BY cid ASC");
+                                                $r = $dbcon->query("SELECT program FROM offerings WHERE did=1 ORDER BY program ASC");
                                                 while($row = $r->fetch_assoc()):
                                                 ?>
-                                                <span class="inline-flex items-center gap-1 bg-indigo-100 text-indigo-800 text-xs font-semibold px-2 py-0.5 rounded-full border border-indigo-200">
-                                                    <span class="font-mono bg-indigo-200 text-indigo-900 px-1 rounded"><?php echo intval($row['cid']); ?></span>
+                                                <span class="font-mono bg-indigo-100 text-indigo-800 text-xs px-2 py-0.5 rounded-full border border-indigo-200">
                                                     <?php echo htmlspecialchars($row['program'], ENT_QUOTES, 'UTF-8'); ?>
                                                 </span>
                                                 <?php endwhile; ?>
@@ -696,16 +720,15 @@ if(isset($_POST['action_type'])){
                                     </tr>
                                     <tr>
                                         <td class="px-3 py-1.5 font-mono text-gray-500">7</td>
-                                        <td class="px-3 py-1.5 font-semibold align-top">year_level_id</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">year_level</td>
                                         <td class="px-3 py-1.5 text-gray-600">
-                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">gradelevel</span> (gid):</span>
-                                            <div class="mt-1 flex flex-wrap gap-1">
+                                            <span class="text-gray-500 text-xs block mb-1">Must match exactly one of:</span>
+                                            <div class="flex flex-wrap gap-1">
                                                 <?php
-                                                $r = $dbcon->query("SELECT gid, glevel FROM gradelevel ORDER BY gid ASC");
+                                                $r = $dbcon->query("SELECT glevel FROM gradelevel WHERE did=1 ORDER BY gid ASC");
                                                 while($row = $r->fetch_assoc()):
                                                 ?>
-                                                <span class="inline-flex items-center gap-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full border border-green-200">
-                                                    <span class="font-mono bg-green-200 text-green-900 px-1 rounded"><?php echo intval($row['gid']); ?></span>
+                                                <span class="font-mono bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded-full border border-green-200">
                                                     <?php echo htmlspecialchars($row['glevel'], ENT_QUOTES, 'UTF-8'); ?>
                                                 </span>
                                                 <?php endwhile; ?>
@@ -714,42 +737,36 @@ if(isset($_POST['action_type'])){
                                     </tr>
                                     <tr>
                                         <td class="px-3 py-1.5 font-mono text-gray-500">8</td>
-                                        <td class="px-3 py-1.5 font-semibold align-top">school_year_id</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">school_year</td>
                                         <td class="px-3 py-1.5 text-gray-600">
-                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">sy</span> (syid):</span>
-                                            <div class="mt-1 flex flex-wrap gap-1">
+                                            <span class="text-gray-500 text-xs block mb-1">Must match exactly one of:</span>
+                                            <div class="flex flex-wrap gap-1">
                                                 <?php
-                                                $r = $dbcon->query("SELECT syid, syname, status FROM sy ORDER BY syid DESC");
+                                                $r = $dbcon->query("SELECT syname, status FROM sy ORDER BY syid DESC");
                                                 while($row = $r->fetch_assoc()):
-                                                    $isActive = ($row['status'] === 'Active');
+                                                    $isActive = $row['status'] === 'Active';
                                                 ?>
-                                                <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border
+                                                <span class="inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border font-mono
                                                     <?php echo $isActive ? 'bg-blue-200 text-blue-900 border-blue-300' : 'bg-gray-100 text-gray-700 border-gray-200'; ?>">
-                                                    <span class="font-mono <?php echo $isActive ? 'bg-blue-300 text-blue-900' : 'bg-gray-200 text-gray-700'; ?> px-1 rounded">
-                                                        <?php echo intval($row['syid']); ?>
-                                                    </span>
                                                     <?php echo htmlspecialchars($row['syname'], ENT_QUOTES, 'UTF-8'); ?>
-                                                    <?php if($isActive): ?>
-                                                        <span class="text-blue-600 font-bold">★</span>
-                                                    <?php endif; ?>
+                                                    <?php if($isActive): ?><span class="text-blue-600">★</span><?php endif; ?>
                                                 </span>
                                                 <?php endwhile; ?>
                                             </div>
-                                            <p class="text-xs text-blue-600 mt-1">★ = currently active school year</p>
+                                            <p class="text-xs text-blue-600 mt-1">★ = currently active</p>
                                         </td>
                                     </tr>
                                     <tr>
                                         <td class="px-3 py-1.5 font-mono text-gray-500">9</td>
-                                        <td class="px-3 py-1.5 font-semibold align-top">status_id</td>
+                                        <td class="px-3 py-1.5 font-semibold align-top">status</td>
                                         <td class="px-3 py-1.5 text-gray-600">
-                                            <span class="text-gray-500 text-xs">Numeric ID from <span class="font-mono">status</span> (sid):</span>
-                                            <div class="mt-1 flex flex-wrap gap-1">
+                                            <span class="text-gray-500 text-xs block mb-1">Must match exactly one of:</span>
+                                            <div class="flex flex-wrap gap-1">
                                                 <?php
-                                                $r = $dbcon->query("SELECT sid, remark FROM status ORDER BY sid ASC");
+                                                $r = $dbcon->query("SELECT remark FROM status ORDER BY sid ASC");
                                                 while($row = $r->fetch_assoc()):
                                                 ?>
-                                                <span class="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5 rounded-full border border-purple-200">
-                                                    <span class="font-mono bg-purple-200 text-purple-900 px-1 rounded"><?php echo intval($row['sid']); ?></span>
+                                                <span class="font-mono bg-purple-100 text-purple-800 text-xs px-2 py-0.5 rounded-full border border-purple-200">
                                                     <?php echo htmlspecialchars($row['remark'], ENT_QUOTES, 'UTF-8'); ?>
                                                 </span>
                                                 <?php endwhile; ?>
@@ -1106,17 +1123,14 @@ function parsePollutedJson(response) {
 function smartPrint() {
     if ($.fn.DataTable.isDataTable('#dataTables-example')) {
         var table = $('#dataTables-example').DataTable();
-        var currentLength = table.page.len();
-
-        table.page.len(-1).draw(false);
-        table.page.len(currentLength).draw(false);
 
         var logoSrc = "<?php echo $defaultPic; ?>";
         var sem = "<?php echo htmlspecialchars($cssemester, ENT_QUOTES, 'UTF-8'); ?>";
         var sy = "<?php echo htmlspecialchars($s, ENT_QUOTES, 'UTF-8'); ?>";
 
         // Build grouped rows by program
-        var rows = document.querySelectorAll('#dataTables-example tbody tr');
+        var selectedProgram = $('#filterProgram').val();
+        var rows = Array.from(table.rows({ search: selectedProgram ? 'applied' : 'none' }).nodes());
         var groups = {}, order = [];
         rows.forEach(function(tr) {
             var cells = tr.querySelectorAll('td');
@@ -1144,8 +1158,8 @@ function smartPrint() {
             <style>
                 body { font-family: Arial, sans-serif; margin: 40px; color: #000; }
                 .header-container { text-align: center; margin-bottom: 30px; position: relative; }
-                .header-container img { position: absolute; left: 0; top: 0; width: 80px; height: 80px; object-fit: contain; }
-                .header-container h2 { margin: 0; font-size: 24px; font-weight: bold; font-family: "Times New Roman", Times, serif; }
+                .header-container img { position: absolute; left: 0; top: 0; width: 70px; height: 70px; object-fit: contain; }
+                .header-container h2 { margin: 0; font-size: 24px; font-weight: bold; font-family: "Times New Roman", Times, serif; padding: 0 90px; }
                 .header-container p { margin: 5px 0 0 0; font-size: 14px; }
                 .header-container .doc-title { font-weight: bold; margin-top: 20px; font-size: 16px; text-decoration: underline; }
                 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
@@ -1160,7 +1174,7 @@ function smartPrint() {
                 <img src="${logoSrc}" alt="Logo" onerror="this.style.display='none'">
                 <h2>AMANDO COPE COLLEGE</h2>
                 <p>A.A Baranghawon Tabaco City</p>
-                <div class="doc-title">ENROLLED STUDENTS DIRECTORY</div>
+                <div class="doc-title">STUDENTS DIRECTORY${selectedProgram ? ' — ' + selectedProgram.toUpperCase() : ''}</div>
             </div>
             <p style="text-align:center; font-size:22px; font-weight: bold; margin:8px 0 4px;">A.Y. ${sy}</p>
             <p style="text-align:center; font-size:16px; margin:0 0 16px;">${sem}</p>
@@ -1272,8 +1286,19 @@ function lookupFees() {
  
                 document.getElementById('fee_preview_box').style.display = 'block';
  
+            } else if(data.status === 'has_balance') {
+                var ledgerUrl = '<?php echo accls()."/_&ans@fm1/?&_a!%@1!2%=".encCode("collegeledger"); ?>&open_csid=' + data.csid;
+                document.getElementById('fee_not_found_box').className = 'border border-red-300 bg-red-50 rounded-xl p-4 text-sm text-red-800 font-medium';
+                document.getElementById('fee_not_found_msg').innerHTML =
+                    '<b>Outstanding Balance Detected.</b> This student has an unpaid balance of ' +
+                    '<b>₱' + parseFloat(data.outstanding).toLocaleString('en-PH', {minimumFractionDigits:2, maximumFractionDigits:2}) + '</b> ' +
+                    'from a previous term. Settle the balance before adding a new assessment.' +
+                    '<br><br><a href="' + ledgerUrl + '" class="inline-flex items-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-bold rounded-lg shadow text-xs transition">' +
+                    '<i class="icon-money"></i> Go to Payment Ledger →</a>';
+                document.getElementById('fee_not_found_box').style.display = 'block';
             } else {
-                document.getElementById('fee_not_found_msg').innerText = data.message || 'No matching fee record found.';
+                document.getElementById('fee_not_found_box').className = 'border border-yellow-300 bg-yellow-50 rounded-xl p-4 text-sm text-yellow-800 font-medium';
+                document.getElementById('fee_not_found_msg').innerHTML = data.message || 'No matching fee record found.';
                 document.getElementById('fee_not_found_box').style.display = 'block';
             }
         },
@@ -1544,9 +1569,9 @@ window.onclick = function(event) {
 
 function downloadStudentCSVTemplate() {
     // Header row matches the exact PHP import order
-    var header  = 'student_id,first_name,middle_name,last_name,gender,program_id,year_level_id,school_year_id,status_id,guardian_name,guardian_mobile,address,student_email,student_mobile\n';
-    var example = '2024-0207,Juan,Dela,Cruz,Male,2,1,3,1,Maria Cruz,09171234567,123 Rizal St Tabaco City,juan@email.com,09181234567\n' +
-                '2024-0219,Ana,,Reyes,Female,2,2,3,1,Pedro Reyes,09271234567,456 Mabini Ave Tabaco City,,\n';
+    var header  = 'student_id,first_name,middle_name,last_name,gender,program,year_level,school_year,status,guardian_name,guardian_mobile,address,student_email,student_mobile\n';
+    var example = '2024-0207,Juan,Dela,Cruz,Male,Computer Science,1st Year,2025-2026,Active,Maria Cruz,09171234567,123 Rizal St Tabaco City,juan@email.com,09181234567\n' +
+                '2024-0219,Ana,,Reyes,Female,Midwifery,2nd Year,2025-2026,Active,Pedro Reyes,09271234567,456 Mabini Ave Tabaco City,,\n';
 
     var blob = new Blob([header + example], { type: 'text/csv' });
     var a    = document.createElement('a');
