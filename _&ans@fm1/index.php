@@ -91,6 +91,29 @@ if (!isset($_SESSION['uid']) || empty($_SESSION['uid'])) {
         </div>
     </div>
 </div>
+
+<div class="modal-overlay" id="logoutModal">
+    <div class="modal-content" style="max-width: 420px;">
+        <div class="bg-red-600 px-6 py-4 flex justify-between items-center">
+            <h4 class="text-lg font-bold text-white">Confirm Logout</h4>
+            <button data-dismiss="modal" class="text-white hover:text-gray-200 text-2xl leading-none">&times;</button>
+        </div>
+        <div class="p-6 text-center">
+            <i class="icon-signout text-red-500 text-5xl mb-4 block"></i>
+            <p class="text-gray-700 font-medium text-base mb-1">Are you sure you want to logout?</p>
+            <p class="text-gray-400 text-sm">Your session will be ended.</p>
+        </div>
+        <div class="bg-gray-50 px-6 py-4 flex justify-end gap-3 border-t">
+            <button data-dismiss="modal" class="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold rounded">
+                Cancel
+            </button>
+            <a href="<?php echo accls(); ?>/logout.php" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded">
+                Yes, Logout
+            </a>
+        </div>
+    </div>
+</div>
+
 <script src="../assets/plugins/dataTables/jquery.dataTables.js"></script>
 <script src="../assets/plugins/dataTables/dataTables.bootstrap.js"></script>
 <script src="../assets/js/jquery-ui.min.js"></script>

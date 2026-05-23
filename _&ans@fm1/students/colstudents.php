@@ -89,7 +89,7 @@ if(isset($_POST['action_type'])){
 
     // prevent duplicate assessment
     $chk = $dbcon->query("
-        SELECT balance_id
+        SELECT csid
         FROM student_balances
         WHERE csid = $csid
         AND syid = $syid
@@ -130,14 +130,13 @@ if(isset($_POST['action_type'])){
         0
     )";
 
+    header('Content-Type: application/json');
     if($dbcon->query($sql)){
+        echo json_encode(["status" => "success"]);
+    } else {
         echo json_encode([
-            "status"=>"success"
-        ]);
-    }else{
-        echo json_encode([
-            "status"=>"error",
-            "message"=>$dbcon->error
+            "status"  => "error",
+            "message" => $dbcon->error ?: "DB query returned false but no error string. SQL: " . $sql
         ]);
     }
 
@@ -1312,7 +1311,11 @@ function confirmSaveFees() {
         },
         success: function(response) {
             var res;
-            try { res = parsePollutedJson(response); } catch(e) { res = {}; }
+            try { res = parsePollutedJson(response); } catch(e) { 
+                console.error("Raw server response:", response);
+                alert("Save failed — raw server response:\n" + response.substring(0, 500));
+                return;
+            }
  
             if(res.status === 'success') {
                 // Hide preview, reload table
