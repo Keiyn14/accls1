@@ -14,8 +14,11 @@ $csData = $resCS->fetch_assoc();
 $sid = $csData['sid'] ?? 0;
 $sem = $csData['semester'] ?? 'None Active';
 
-// --- 🎯 COLLEGE COUNTER ENGINE (Filtered by Active SY & Semester) ---
-$strCol = "SELECT count(csid) as college FROM students WHERE did=1 AND syid=$syid AND sid=$sid";
+// --- 🎯 COLLEGE COUNTER ENGINE (Assessed Students — have student_balances record for active SY & Sem) ---
+$strCol = "SELECT COUNT(DISTINCT s.csid) as college 
+           FROM students s 
+           INNER JOIN student_balances sb ON s.csid = sb.csid AND sb.syid = $syid AND sb.sid = $sid
+           WHERE s.did = 1";
 $colRes = $dbcon->query($strCol);
 $colData = $colRes->fetch_assoc();
 $college = intval($colData['college'] ?? 0);
@@ -49,8 +52,11 @@ while($cRow = $colQRes->fetch_assoc()){
     $cid = $cRow['cid'];
     $chartLabels[] = $cRow['program'];
     
-    // Count students in this program for active SY & Semester only
-    $eRes = $dbcon->query("SELECT COUNT(csid) as total FROM students WHERE cid=$cid AND syid=$syid AND sid=$sid");
+    // Count assessed students in this program for active SY & Semester (must have student_balances record)
+    $eRes = $dbcon->query("SELECT COUNT(DISTINCT s.csid) as total 
+                           FROM students s 
+                           INNER JOIN student_balances sb ON s.csid = sb.csid AND sb.syid = $syid AND sb.sid = $sid
+                           WHERE s.cid = $cid");
     $eData = $eRes->fetch_assoc();
     $chartEnrolled[] = intval($eData['total'] ?? 0);
     

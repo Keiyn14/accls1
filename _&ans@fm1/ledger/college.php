@@ -228,7 +228,7 @@ if(isset($_POST['action_type'])){
             $sid = intval($semQry->fetch_assoc()['sid']);
  
             // ── Check student has an assessment for this term ──
-            $balChk = $dbcon->query("SELECT balance_id FROM student_balances WHERE csid=$csid AND syid=$syid AND sid=$sid LIMIT 1");
+            $balChk = $dbcon->query("SELECT csid FROM student_balances WHERE csid=$csid AND syid=$syid AND sid=$sid LIMIT 1");
             if (!$balChk || $balChk->num_rows === 0) {
                 $results[] = ['row' => $rowNum, 'studentid' => $studentid, 'status' => 'error',
                               'message' => "No assessment record for $studentid in $syname – $semname. Assess the student first."];
@@ -510,7 +510,7 @@ if(isset($_POST['action_type'])){
                 <option value="">All School Years</option>
                 <?php
                 $syRes=$dbcon->query("SELECT syname FROM sy ORDER BY syname DESC");
-                while($s=$syRes->fetch_assoc()) echo "<option value='".htmlspecialchars($s['syname'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($s['syname'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
+                while($syRow=$syRes->fetch_assoc()) echo "<option value='".htmlspecialchars($syRow['syname'] ?? '', ENT_QUOTES, 'UTF-8')."'>".htmlspecialchars($syRow['syname'] ?? '', ENT_QUOTES, 'UTF-8')."</option>";
                 ?>
             </select>
             <select id="filterSem" class="px-4 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
@@ -1537,6 +1537,10 @@ $(document).ready(function() {
         var $child  = $('#child-' + csid);
         var $chev   = $(this).find('.student-chevron');
 
+        $('.student-child-rows').not($child).addClass('hidden');
+        $('.student-parent-row').not(this).removeClass('bg-green-50');
+        $('.student-chevron').not($chev).css('transform', 'rotate(0deg)');
+
         $child.toggleClass('hidden');
 
         if ($child.hasClass('hidden')) {
@@ -1602,12 +1606,11 @@ $(document).ready(function() {
             }
         });
 
-        // If no SY/Sem filter active, restore collapsed state for previously un-clicked rows
+        // When all filters cleared, collapse ALL expanded rows back to default
         if (!sySel && !semSel && !search && !pSel) {
-            $('.student-parent-row').each(function() {
-                var csid = $(this).data('csid');
-                $('#child-' + csid).find('tbody tr').removeClass('hidden');
-            });
+            $('.student-child-rows').addClass('hidden');
+            $('.student-parent-row').removeClass('bg-green-50');
+            $('.student-chevron').css('transform', 'rotate(0deg)');
         }
 
         $('#noResultsMsg').toggleClass('hidden', anyVisible);
@@ -1673,6 +1676,7 @@ $(document).ready(function() {
     });
 });
 
+var bulkHasPosted = false;
 var bulkRowCount     = 0;
 var bulkParsedCSV    = [];   // parsed rows from CSV upload
 var bulkActiveTab    = 'manual';
@@ -1699,6 +1703,9 @@ function switchBulkTab(tab) {
 // ── Open / Close ──────────────────────────────────────────────
 function closeBulkModal() {
     closeModal('bulkPaymentModal');
+    if (bulkHasPosted) {
+        window.location.reload();
+    }
 }
  
 function resetBulkModal() {
@@ -2226,6 +2233,7 @@ function submitBulkPayments() {
  
             // Update button state
             if (res.success_count > 0) {
+                bulkHasPosted = true;
                 label.innerText = 'Done — ' + res.success_count + ' Posted';
                 document.getElementById('btn_bulk_reset').classList.remove('hidden');
                 btn.classList.add('opacity-50', 'cursor-not-allowed');

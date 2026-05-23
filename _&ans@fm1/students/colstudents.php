@@ -524,28 +524,13 @@ if(isset($_POST['action_type'])){
             <select id="filterProgram" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
                 <option value="">All Programs</option>
                 <?php
-                // 1. 🎯 CHANGE THIS NUMBER: Set this to the exact ID (cid) of Computer Science in your database
-                $default_cid = 2; 
-
-                // 2. Dynamic Lookup: Fetch the exact program string name using that ID
-                $defaultProgramName = '';
-                $lookUp = $dbcon->query("SELECT program FROM offerings WHERE cid = $default_cid LIMIT 1");
-                if($lookUp && $row = $lookUp->fetch_assoc()) {
-                    $defaultProgramName = $row['program'];
-                }
-
-                // 3. Loop and render options dynamically
-                $fRes = $dbcon->query("SELECT program FROM offerings GROUP BY program");
-                while($f = $fRes->fetch_assoc()) {
-                    $programName = $f['program'] ?? '';
-                    
-                    // Match against our dynamically fetched program name
-                    $selected = ($programName === $defaultProgramName && $defaultProgramName !== '') ? 'selected' : '';
-                    
-                    echo "<option value='".htmlspecialchars($programName, ENT_QUOTES, 'UTF-8')."' $selected>"
-                            .htmlspecialchars($programName, ENT_QUOTES, 'UTF-8').
-                        "</option>";
-                }
+                $fRes = $dbcon->query("SELECT program FROM offerings WHERE did=1 GROUP BY program ORDER BY program ASC");
+                    while($f = $fRes->fetch_assoc()) {
+                        $programName = $f['program'] ?? '';
+                        echo "<option value='".htmlspecialchars($programName, ENT_QUOTES, 'UTF-8')."'>"
+                                .htmlspecialchars($programName, ENT_QUOTES, 'UTF-8').
+                            "</option>";
+                    }
                 ?>
             </select>
             <select id="filterLevel" class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
