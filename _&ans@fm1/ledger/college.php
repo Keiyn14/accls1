@@ -686,7 +686,7 @@ if(isset($_POST['action_type'])){
                                             <td class="px-4 py-2.5 print-hide">
                                                 <div class="flex gap-2 justify-center">
                                                     <button type="button"
-                                                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition duration-200 inline-flex items-center gap-1 text-sm
+                                                            class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-sm transition duration-200 inline-flex items-center gap-1 text-sm"
                                                             onclick="triggerPaymentModal(this)"
                                                             data-csid="<?php echo $csid; ?>"
                                                             data-name="<?php echo htmlspecialchars($fullName, ENT_QUOTES, 'UTF-8'); ?>"
